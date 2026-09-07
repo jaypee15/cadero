@@ -30,16 +30,29 @@ export async function generateSessionKey(): Promise<CryptoKey> {
   ]);
 }
 
-export async function encryptEnvelope(
+export class EnvelopeError extends Error {
+  constructor(
+    public readonly reason:
+      | "malformed_envelope"
+      | "decryption_failed"
+      | "invalid_event",
+    message: string,
+  ) {
+    super(message);
+    this.name = "EnvelopeError";
+  }
+}
+
+export async function encryptRaw(
   roomId: string,
   key: CryptoKey,
-  event: WireEvent,
+  plaintext: string,
 ): Promise<EncryptedEnvelope> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encoded = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv },
     key,
-    textEncoder.encode(JSON.stringify(event)),
+    textEncoder.encode(plaintext),
   );
   return {
     room_id: roomId,
@@ -48,15 +61,41 @@ export async function encryptEnvelope(
   };
 }
 
+export async function encryptEnvelope(
+  roomId: string,
+  key: CryptoKey,
+  event: WireEvent,
+): Promise<EncryptedEnvelope> {
+  return encryptRaw(roomId, key, JSON.stringify(event));
+}
+
 export async function decryptEnvelope(
   key: CryptoKey,
   envelope: EncryptedEnvelope,
 ): Promise<WireEvent> {
-  const parsed = EncryptedEnvelopeSchema.parse(envelope);
-  const plain = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: fromBase64(parsed.iv) },
-    key,
-    fromBase64(parsed.ciphertext),
-  );
-  return WireEventSchema.parse(JSON.parse(textDecoder.decode(plain)));
+  const parsed = EncryptedEnvelopeSchema.safeParse(envelope);
+  if (!parsed.success) {
+    throw new EnvelopeError("malformed_envelope", "envelope failed schema validation");
+  }
+  let plain: ArrayBuffer;
+  try {
+    plain = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: fromBase64(parsed.data.iv) },
+      key,
+      fromBase64(parsed.data.ciphertext),
+    );
+  } catch {
+    throw new EnvelopeError("decryption_failed", "envelope failed to decrypt with this key");
+  }
+  let parsedEvent: unknown;
+  try {
+    parsedEvent = JSON.parse(textDecoder.decode(plain));
+  } catch {
+    throw new EnvelopeError("invalid_event", "decrypted payload is not JSON");
+  }
+  const event = WireEventSchema.safeParse(parsedEvent);
+  if (!event.success) {
+    throw new EnvelopeError("invalid_event", "decrypted payload is not a wire event");
+  }
+  return event.data;
 }
