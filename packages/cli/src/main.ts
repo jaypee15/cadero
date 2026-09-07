@@ -86,6 +86,7 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
     );
     const qr = await import("qrcode");
     out(await qr.toString(qrPayload, { type: "terminal" }));
+    out(qrPayload);
     out(`Scan with your phone. Relay: ${relayUrl}  Room: ${roomId}`);
 
     const sessionId = `sess_${randomBytes(8).toString("hex")}`;
