@@ -1,6 +1,6 @@
 import type { WireEvent } from "@cadence/protocol";
 import { createPtySession, type PtySession } from "./pty.js";
-import { detectIntercept, isSafeCommand, type AgentName } from "./intercept.js";
+import { findIntercept, isSafeCommand, type AgentName } from "./intercept.js";
 
 export interface AgentSessionOptions {
   agent: AgentName;
@@ -17,10 +17,16 @@ export interface AgentSessionOptions {
 }
 
 export class AgentSession {
+  // A PTY chunk boundary can split a prompt line in half; prompts must be
+  // detected across chunks, so incoming output is accumulated here. The
+  // buffer never contains a "\n" (complete lines are forwarded promptly).
+  private static readonly MAX_HELD_LINE = 8192;
   private readonly opts: AgentSessionOptions;
   private pty: PtySession | undefined;
   private pending: { command: string } | undefined;
   private buffer = "";
+  private lineBuffer = "";
+  private prevLine = "";
 
   constructor(opts: AgentSessionOptions) {
     this.opts = opts;
@@ -47,14 +53,25 @@ export class AgentSession {
       this.buffer += chunk;
       return; // stream paused behind the pending intercept
     }
-    const hit = detectIntercept(this.opts.agent, chunk);
+    const unforwarded = this.lineBuffer + chunk;
+    const prefix = this.prevLine ? `${this.prevLine}\n` : "";
+    const window = prefix + unforwarded;
+    const hit = findIntercept(this.opts.agent, window);
     if (hit) {
+      this.lineBuffer = "";
+      this.prevLine = "";
       if (isSafeCommand(hit.command, this.opts.config.safeCommands)) {
         this.pty?.write(this.opts.autoApproveText ?? "y\r");
-        this.sendTerminal(chunk);
+        this.sendTerminal(unforwarded);
         return;
       }
-      this.pending = hit;
+      this.pending = { command: hit.command };
+      // Flush everything up to and including the matched prompt; anything
+      // after it waits behind the pending intercept.
+      const matchStart = Math.max(0, hit.end - prefix.length);
+      const matched = unforwarded.slice(0, matchStart);
+      this.buffer = unforwarded.slice(matchStart);
+      if (matched.length > 0) this.sendTerminal(matched);
       this.trySend({
         event: "INTERCEPT_REQUIRED",
         meta: { session_id: this.opts.sessionId },
@@ -66,7 +83,23 @@ export class AgentSession {
       });
       return;
     }
-    this.sendTerminal(chunk);
+    const nl = unforwarded.lastIndexOf("\n");
+    if (nl >= 0) {
+      const complete = unforwarded.slice(0, nl + 1);
+      this.sendTerminal(complete);
+      const head = complete.slice(0, -1);
+      const prevNl = head.lastIndexOf("\n");
+      this.prevLine = prevNl >= 0 ? head.slice(prevNl + 1) : head;
+      this.lineBuffer = unforwarded.slice(nl + 1);
+    } else if (unforwarded.length > AgentSession.MAX_HELD_LINE) {
+      // Pathological newline-free stream: flush the overflow so terminal
+      // output still streams, keep a bounded context window for detection.
+      const held = unforwarded.slice(unforwarded.length - AgentSession.MAX_HELD_LINE);
+      this.sendTerminal(unforwarded.slice(0, unforwarded.length - AgentSession.MAX_HELD_LINE));
+      this.lineBuffer = held;
+    } else {
+      this.lineBuffer = unforwarded;
+    }
   }
 
   private handleRemote(event: WireEvent): void {
@@ -91,6 +124,15 @@ export class AgentSession {
   }
 
   private handleExit(code: number): void {
+    const tail = this.lineBuffer;
+    this.lineBuffer = "";
+    if (tail.length > 0) this.sendTerminal(tail);
+    if (this.pending) {
+      const flushed = this.buffer;
+      this.buffer = "";
+      this.pending = undefined;
+      if (flushed.length > 0) this.sendTerminal(flushed);
+    }
     this.sendTerminal(`\n[session exited with code ${code}]\n`);
     this.pty = undefined;
   }

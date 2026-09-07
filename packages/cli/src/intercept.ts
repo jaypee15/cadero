@@ -30,20 +30,34 @@ function extractCommand(chunk: string, promptStartIndex: number): string {
   return "";
 }
 
+export interface InterceptMatch extends InterceptHit {
+  /** Index just past the matched prompt within the scanned text. */
+  end: number;
+}
+
+export function findIntercept(
+  agent: AgentName,
+  text: string,
+): InterceptMatch | null {
+  const patterns = agent === "claude" ? CLAUDE_PATTERNS : OPENCODE_PATTERNS;
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match && match.index !== undefined) {
+      const prompt = trim500(match[0]);
+      const command = extractCommand(text, match.index) || prompt;
+      return { prompt, command, end: match.index + match[0].length };
+    }
+  }
+  return null;
+}
+
 export function detectIntercept(
   agent: AgentName,
   chunk: string,
 ): InterceptHit | null {
-  const patterns = agent === "claude" ? CLAUDE_PATTERNS : OPENCODE_PATTERNS;
-  for (const pattern of patterns) {
-    const match = chunk.match(pattern);
-    if (match && match.index !== undefined) {
-      const prompt = trim500(match[0]);
-      const command = extractCommand(chunk, match.index) || prompt;
-      return { prompt, command };
-    }
-  }
-  return null;
+  const hit = findIntercept(agent, chunk);
+  if (!hit) return null;
+  return { prompt: hit.prompt, command: hit.command };
 }
 
 export function isSafeCommand(command: string, safeCommands: string[]): boolean {

@@ -23,6 +23,11 @@ class FakeSocket {
   last(): WireEvent | undefined {
     return this.sent[this.sent.length - 1];
   }
+  joined(): string {
+    return this.sent
+      .map((e) => (e.payload as { chunk?: string }).chunk ?? "")
+      .join("");
+  }
   async all(count: number, timeoutMs = 5000): Promise<void> {
     const start = Date.now();
     while (this.sent.length < count) {
@@ -112,14 +117,12 @@ describe("AgentSession", () => {
       config: { safeCommands: ["npm test"] },
     });
     session.start();
-    await socket.all(1);
+    await socket.until((sent) => socket.joined().includes(" done"));
     // The intercept hit was safe-listed: only the TERMINAL_DATA went out,
     // the approval keystroke was written straight into the PTY, and the
     // post-approval output arrives.
     expect(socket.sent.every((e) => e.event === "TERMINAL_DATA")).toBe(true);
-    const chunks = socket.sent
-      .map((e) => (e.payload as { chunk: string }).chunk)
-      .join("");
+    const chunks = socket.joined();
     expect(chunks).toContain(" done");
     session.stop();
   });
@@ -141,9 +144,10 @@ describe("AgentSession", () => {
       config: { safeCommands: [] },
     });
     session.start();
-    await socket.all(1);
+    await socket.until(
+      (sent) => sent.some((e) => e.event === "INTERCEPT_REQUIRED"),
+    );
     const intercept = socket.sent.find((e) => e.event === "INTERCEPT_REQUIRED");
-    expect(intercept).toBeDefined();
     expect((intercept!.payload as { command: string }).command).toBe(
       "rm -rf ./dist && npm run build",
     );
@@ -154,11 +158,45 @@ describe("AgentSession", () => {
       meta: { session_id: "sess_1" },
       payload: { decision: "APPROVE", input_payload: null },
     } as WireEvent);
-    await socket.all(3);
-    const resumed = socket.sent
-      .map((e) => (e.payload as { chunk: string }).chunk)
-      .join("");
+    await socket.until((sent) => socket.joined().includes(" continued"));
+    const resumed = socket.joined();
     expect(resumed).toContain(" continued");
+    session.stop();
+  });
+
+  it("detects a prompt line split across pty chunks", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    const agent = stubAgent(
+      dir,
+      'printf "rm -rf ./dist\\nDo you want to "; sleep 0.2; printf "proceed? [y/N]"; read -n 1; printf " resumed"',
+    );
+    const socket = new FakeSocket();
+    const session = new AgentSession({
+      agent: "claude",
+      command: "bash",
+      args: [agent],
+      cwd: dir,
+      socket: socket as never,
+      sessionId: "sess_1",
+      config: { safeCommands: [] },
+    });
+    session.start();
+    // The command line streams out before the prompt finishes arriving.
+    await socket.until(() => socket.joined().includes("rm -rf ./dist\r\n"));
+    await socket.until(
+      (sent) => sent.some((e) => e.event === "INTERCEPT_REQUIRED"),
+    );
+    const intercept = socket.sent.find((e) => e.event === "INTERCEPT_REQUIRED");
+    expect((intercept!.payload as { command: string }).command).toBe(
+      "rm -rf ./dist",
+    );
+
+    socket.handler!({
+      event: "RESOLVE_INTERCEPT",
+      meta: { session_id: "sess_1" },
+      payload: { decision: "APPROVE", input_payload: null },
+    } as WireEvent);
+    await socket.until((sent) => socket.joined().includes(" resumed"));
     session.stop();
   });
 
