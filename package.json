@@ -7,9 +7,10 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspace=@cadence/protocol && npm run build --workspace=@cadence/relay && npm run build --workspace=@cadence/cli",
+    "build": "npm run build --workspace=@cadence/protocol && npm run build --workspace=@cadence/relay && npm run build --workspace=@cadence/cli && npm run build --workspace=@cadence/mobile",
+    "test": "npm test --workspace=@cadence/protocol && npm test --workspace=@cadence/relay && npm test --workspace=@cadence/cli && npm test --workspace=@cadence/mobile",
     "postinstall": "sh scripts/postinstall.sh",
-    "typecheck": "tsc --noEmit -p tsconfig.base.json"
+    "typecheck": "tsc --noEmit -p tsconfig.base.json && tsc --noEmit -p packages/mobile"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
