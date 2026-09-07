@@ -214,4 +214,32 @@ describe("AgentSession", () => {
     expect(errors.join("\n")).not.toContain("one\\n"); // no frame bodies in errors
     session.stop();
   });
+
+  it("ignores RESOLVE_INTERCEPT when no intercept is pending", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    const agent = stubAgent(dir, 'read -n 1; printf "APPROVED-MARKER"');
+    const socket = new FakeSocket();
+    const session = new AgentSession({
+      agent: "claude",
+      command: "bash",
+      args: [agent],
+      cwd: dir,
+      socket: socket as never,
+      sessionId: "sess_1",
+      config: { safeCommands: [] },
+    });
+    session.start();
+    await new Promise((r) => setTimeout(r, 300));
+    socket.handler!({
+      event: "RESOLVE_INTERCEPT",
+      meta: { session_id: "sess_1" },
+      payload: { decision: "APPROVE", input_payload: null },
+    } as WireEvent);
+    await new Promise((r) => setTimeout(r, 300));
+    const chunks = socket.sent
+      .map((e) => (e.payload as { chunk: string }).chunk)
+      .join("");
+    expect(chunks).not.toContain("APPROVED-MARKER");
+    session.stop();
+  });
 });

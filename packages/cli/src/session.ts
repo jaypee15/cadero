@@ -71,6 +71,7 @@ export class AgentSession {
 
   private handleRemote(event: WireEvent): void {
     if (event.event === "RESOLVE_INTERCEPT") {
+      if (!this.pending) return; // stray resolution: nothing to resolve
       if (event.payload.decision === "APPROVE") {
         this.pty?.write(event.payload.input_payload ?? "y\r");
       } else {
