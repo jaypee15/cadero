@@ -26,6 +26,7 @@ export function CadenceApp() {
   const termRef = useRef<TerminalApi | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const scannerRef = useRef<CameraScanner | undefined>(undefined);
+  const startingRef = useRef(false);
   const [manualPayload, setManualPayload] = useState("");
   const [scanning, setScanning] = useState(false);
 
@@ -52,6 +53,8 @@ export function CadenceApp() {
 
   const startSession = useCallback(
     async (parsed: { relay: string; room: string; key: string }) => {
+      if (startingRef.current) return;
+      startingRef.current = true;
       try {
         scannerRef.current?.stop();
         scannerRef.current = undefined;
@@ -83,11 +86,14 @@ export function CadenceApp() {
               message: "Session key rejected — pairing mismatch. Rescan the QR.",
             }),
         });
+        void socketRef.current?.close();
         socketRef.current = socket;
         await socket.connect();
         dispatchIfOpen({ type: "CONNECTED" });
       } catch (err) {
         setError(err instanceof Error ? err.message : "pairing failed");
+      } finally {
+        startingRef.current = false;
       }
     },
     [dispatchIfOpen],
