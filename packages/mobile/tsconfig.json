@@ -25,6 +25,7 @@
   "include": [
     "next.config.mjs",
     "src",
+    "tests",
     "vitest.config.ts",
     ".next/types/**/*.ts"
   ],
