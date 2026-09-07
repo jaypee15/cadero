@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reduceSession, type SessionState } from "../src/state/sessionState.js";
+import { GAP_MARKER, reduceSession, type SessionState } from "../src/state/sessionState.js";
 
 const initial: SessionState = {
   phase: "connecting",
@@ -54,5 +54,19 @@ describe("reduceSession", () => {
     const fatal = reduceSession(initial, { type: "FATAL", message: "wrong key" });
     expect(fatal.phase).toBe("closed");
     expect(fatal.closedReason).toContain("wrong key");
+  });
+
+  it("clears the gap marker when data flows again", () => {
+    const gapped = reduceSession(initial, { type: "GAP" });
+    expect(gapped.gapped).toBe(true);
+    const recovered = reduceSession(gapped, {
+      type: "EVENT",
+      event: { event: "TERMINAL_DATA", meta: { session_id: "s" }, payload: { chunk: "back" } },
+    });
+    expect(recovered.gapped).toBe(false);
+  });
+
+  it("exposes the gap marker constant", () => {
+    expect(GAP_MARKER).toContain("output during the gap was not captured");
   });
 });

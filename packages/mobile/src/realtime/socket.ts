@@ -10,6 +10,9 @@ import {
 const BASE_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 30000;
 
+export const HEARTBEAT_INTERVAL_MS = 20000;
+export const STALE_AFTER_MS = 45000;
+
 const WS_OPEN = 1;
 const WS_CLOSED = 3;
 
@@ -33,6 +36,9 @@ export class MobileSocket {
   private reconnectDisabled = false;
   private hasConnectedOnce = false;
   private connecting: Promise<void> | undefined;
+  private heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+  private staleTimer: ReturnType<typeof setInterval> | undefined;
+  private lastReceivedAt = Date.now();
 
   constructor(opts: MobileSocketOptions) {
     this.opts = opts;
@@ -64,6 +70,17 @@ export class MobileSocket {
         if (this.hasConnectedOnce) this.opts.onGap();
         this.hasConnectedOnce = true;
         this.backoffMs = BASE_BACKOFF_MS;
+        this.lastReceivedAt = Date.now();
+        this.heartbeatTimer = setInterval(() => {
+          void this.send({
+            event: "HEARTBEAT",
+            meta: { session_id: "" },
+            payload: {},
+          }).catch(() => {
+            /* send failure on a dying socket: staleness/close path owns recovery */
+          });
+        }, HEARTBEAT_INTERVAL_MS);
+        this.staleTimer = setInterval(() => this.maybeForceReconnect(), 5000);
         resolve();
       };
       ws.onmessage = (message) => this.handleRaw(String(message.data));
@@ -83,6 +100,7 @@ export class MobileSocket {
   }
 
   private handleRaw(raw: string): void {
+    this.lastReceivedAt = Date.now();
     let envelope: unknown;
     try {
       envelope = JSON.parse(raw);
@@ -102,7 +120,16 @@ export class MobileSocket {
       });
   }
 
+  private maybeForceReconnect(): void {
+    if (this.closedByUser || this.reconnectDisabled) return;
+    const ws = this.ws;
+    if (!ws || ws.readyState !== WS_OPEN) return;
+    if (Date.now() - this.lastReceivedAt <= STALE_AFTER_MS) return;
+    ws.close(); // handleClose schedules the reconnect with backoff
+  }
+
   private handleClose(code: number, reason: string): void {
+    this.clearTimers();
     if (code === 4401 || code === 4404) {
       this.reconnectDisabled = true;
       this.opts.onClosed(code, reason);
@@ -138,11 +165,19 @@ export class MobileSocket {
 
   async close(): Promise<void> {
     this.closedByUser = true;
+    this.clearTimers();
     const ws = this.ws;
     if (!ws || ws.readyState === WS_CLOSED) return;
     await new Promise<void>((resolve) => {
       ws.addEventListener("close", () => resolve(), { once: true });
       ws.close();
     });
+  }
+
+  private clearTimers(): void {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = undefined;
+    if (this.staleTimer) clearInterval(this.staleTimer);
+    this.staleTimer = undefined;
   }
 }

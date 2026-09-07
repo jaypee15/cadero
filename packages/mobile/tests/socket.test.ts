@@ -8,7 +8,7 @@ import {
 } from "@cadence/protocol";
 import { createServer } from "@cadence/relay/server.js";
 import { createRoomStore } from "@cadence/relay/rooms.js";
-import { MobileSocket } from "../src/realtime/socket.js";
+import { MobileSocket, HEARTBEAT_INTERVAL_MS, STALE_AFTER_MS } from "../src/realtime/socket.js";
 
 const redisUrl = "redis://127.0.0.1:6379";
 
@@ -95,4 +95,130 @@ describe("MobileSocket against the real relay", () => {
     await cli.close();
     await app2.close();
   }, 30000);
+
+  it("sends heartbeats and survives a relay outage window", async () => {
+    const store = createRoomStore(redisUrl);
+    const roomId = await store.createRoom();
+    store.disconnect();
+
+    const app = createServer({ redisUrl, verifyUser: async () => "phone" });
+    await app.listen({ port: 0 });
+    const port = (app.server.address() as { port: number }).port;
+    const relayUrl = `http://127.0.0.1:${port}`;
+
+    const sessionKey = await generateSessionKey();
+    const phone = new MobileSocket({
+      relayUrl,
+      roomId,
+      token: "t",
+      sessionKey,
+      WebSocketImpl: WebSocketImpl as unknown as typeof WebSocket,
+      onEvent: () => {},
+      onGap: () => {},
+      onClosed: () => {},
+    });
+    await phone.connect();
+    await app.close();
+    await new Promise((r) => setTimeout(r, 3000));
+    const app2 = createServer({ redisUrl, verifyUser: async () => "phone" });
+    await app2.listen({ port });
+    // The relay has no replay (redis pub/sub only reaches subscribed members),
+    // so wait for the phone's backoff-driven reconnect to land before the peer
+    // sends; otherwise the single heartbeat is lost mid-outage.
+    const phoneSocket = phone as unknown as { ws?: { readyState: number } };
+    while (phoneSocket.ws?.readyState !== 1) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    const back = onceEvent(phone);
+    const cli = new MobileSocket({
+      relayUrl,
+      roomId,
+      token: "t",
+      sessionKey,
+      WebSocketImpl: WebSocketImpl as unknown as typeof WebSocket,
+      onEvent: () => {},
+      onGap: () => {},
+      onClosed: () => {},
+    });
+    await cli.connect();
+    await cli.send({
+      event: "HEARTBEAT",
+      meta: { session_id: "sess_cli" },
+      payload: {},
+    });
+    expect(await back).toEqual({
+      event: "HEARTBEAT",
+      meta: { session_id: "sess_cli", timestamp: expect.any(Number) },
+      payload: {},
+    });
+    await phone.close();
+    await cli.close();
+    await app2.close();
+  }, 30000);
+});
+
+describe("staleness detection", () => {
+  it("exports the documented heartbeat cadence", () => {
+    expect(HEARTBEAT_INTERVAL_MS).toBe(20000);
+    expect(STALE_AFTER_MS).toBe(45000);
+  });
+
+  function makeTestSocket(): {
+    internals: {
+      ws: { readyState: number; close: () => void } | undefined;
+      lastReceivedAt: number;
+      closedByUser: boolean;
+      maybeForceReconnect?: () => void;
+    };
+    closes: number[];
+  } {
+    const socket = new MobileSocket({
+      relayUrl: "http://127.0.0.1:1",
+      roomId: "room_test",
+      token: "t",
+      sessionKey: null as unknown as CryptoKey,
+      onEvent: () => {},
+      onGap: () => {},
+      onClosed: () => {},
+    });
+    const closes: number[] = [];
+    const internals = socket as unknown as {
+      ws: { readyState: number; close: () => void } | undefined;
+      lastReceivedAt: number;
+      closedByUser: boolean;
+      maybeForceReconnect?: () => void;
+    };
+    internals.ws = {
+      readyState: 1,
+      close: () => {
+        closes.push(1);
+      },
+    };
+    return { internals, closes };
+  }
+
+  it("force-closes a silent-but-open socket so the reconnect path takes over", () => {
+    const { internals, closes } = makeTestSocket();
+    expect(typeof internals.maybeForceReconnect).toBe("function");
+    internals.lastReceivedAt = Date.now() - STALE_AFTER_MS - 1;
+    internals.maybeForceReconnect!();
+    expect(closes).toHaveLength(1);
+  });
+
+  it("leaves fresh, not-open, or user-closed sockets alone", () => {
+    const { internals, closes } = makeTestSocket();
+    internals.lastReceivedAt = Date.now();
+    internals.maybeForceReconnect!();
+    expect(closes).toHaveLength(0);
+
+    internals.lastReceivedAt = Date.now() - STALE_AFTER_MS - 1;
+    internals.ws = undefined;
+    internals.maybeForceReconnect!();
+    expect(closes).toHaveLength(0);
+
+    internals.ws = { readyState: 1, close: () => closes.push(1) };
+    internals.closedByUser = true;
+    internals.maybeForceReconnect!();
+    expect(closes).toHaveLength(0);
+  });
 });

@@ -2,6 +2,8 @@ import type { WireEvent } from "@cadence/protocol";
 
 export type SessionPhase = "need-pairing" | "connecting" | "live" | "closed";
 
+export const GAP_MARKER = "\n[connection lost — output during the gap was not captured]\n";
+
 export interface InterceptState {
   id: string;
   agent: string;
@@ -53,7 +55,9 @@ export function reduceSession(state: SessionState, action: SessionAction): Sessi
     case "EVENT": {
       const event = action.event;
       if (event.event === "TERMINAL_DATA") {
-        return { ...state, chunkCount: state.chunkCount + 1 };
+        // Data flowing again clears the gap banner; the loss itself is
+        // recorded in the terminal feed (Task 9 writes the gap marker text).
+        return { ...state, chunkCount: state.chunkCount + 1, gapped: false };
       }
       if (event.event === "INTERCEPT_REQUIRED") {
         return {
