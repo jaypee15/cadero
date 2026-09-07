@@ -75,7 +75,9 @@ export function registerStreamRoute(
 
       socket.on("message", (raw) => {
         if (processMessage) {
-          void processMessage(raw);
+          void processMessage(raw).catch(() => {
+            request.log.warn(redactForLog({ room_id: roomId }));
+          });
         } else {
           pending.push(raw);
         }
@@ -157,11 +159,21 @@ export function registerStreamRoute(
           request.log.warn(redactForLog(parsed));
           return;
         }
-        await publishEnvelope(envelope.data);
-        await store.touchRoom(roomId);
+        // A transient redis failure must not reject out of an un-awaited
+        // promise (which would crash the process). Drop the frame; the
+        // socket stays alive and non-routing while redis is down.
+        try {
+          await publishEnvelope(envelope.data);
+          await store.touchRoom(roomId);
+        } catch {
+          request.log.warn(redactForLog(envelope.data));
+          return;
+        }
       };
       for (const raw of pending.splice(0)) {
-        void processMessage(raw);
+        void processMessage(raw).catch(() => {
+          request.log.warn(redactForLog({ room_id: roomId }));
+        });
       }
 
       resolveReady();
