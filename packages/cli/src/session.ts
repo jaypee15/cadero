@@ -13,6 +13,7 @@ export interface AgentSessionOptions {
   sessionId: string;
   config: { safeCommands: string[] };
   autoApproveText?: string;
+  onError?: (message: string) => void;
 }
 
 export class AgentSession {
@@ -31,9 +32,9 @@ export class AgentSession {
       args: this.opts.args,
       cwd: this.opts.cwd,
     });
-    this.pty.onData((chunk) => void this.handleChunk(chunk));
-    this.pty.onExit((code) => void this.handleExit(code));
-    this.opts.socket.onEvent((event) => void this.handleRemote(event));
+    this.pty.onData((chunk) => this.handleChunk(chunk));
+    this.pty.onExit((code) => this.handleExit(code));
+    this.opts.socket.onEvent((event) => this.handleRemote(event));
   }
 
   stop(): void {
@@ -41,7 +42,7 @@ export class AgentSession {
     this.pty = undefined;
   }
 
-  private async handleChunk(chunk: string): Promise<void> {
+  private handleChunk(chunk: string): void {
     if (this.pending) {
       this.buffer += chunk;
       return; // stream paused behind the pending intercept
@@ -50,11 +51,11 @@ export class AgentSession {
     if (hit) {
       if (isSafeCommand(hit.command, this.opts.config.safeCommands)) {
         this.pty?.write(this.opts.autoApproveText ?? "y\r");
-        await this.sendTerminal(chunk);
+        this.sendTerminal(chunk);
         return;
       }
       this.pending = hit;
-      await this.opts.socket.send({
+      this.trySend({
         event: "INTERCEPT_REQUIRED",
         meta: { session_id: this.opts.sessionId },
         payload: {
@@ -65,10 +66,10 @@ export class AgentSession {
       });
       return;
     }
-    await this.sendTerminal(chunk);
+    this.sendTerminal(chunk);
   }
 
-  private async handleRemote(event: WireEvent): Promise<void> {
+  private handleRemote(event: WireEvent): void {
     if (event.event === "RESOLVE_INTERCEPT") {
       if (event.payload.decision === "APPROVE") {
         this.pty?.write(event.payload.input_payload ?? "y\r");
@@ -79,7 +80,7 @@ export class AgentSession {
       this.buffer = "";
       this.pending = undefined;
       if (flushed.length > 0) {
-        await this.sendTerminal(flushed);
+        this.sendTerminal(flushed);
       }
       return;
     }
@@ -88,13 +89,25 @@ export class AgentSession {
     }
   }
 
-  private async handleExit(code: number): Promise<void> {
-    await this.sendTerminal(`\n[session exited with code ${code}]\n`);
+  private handleExit(code: number): void {
+    this.sendTerminal(`\n[session exited with code ${code}]\n`);
     this.pty = undefined;
   }
 
-  private sendTerminal(chunk: string): Promise<void> {
-    return this.opts.socket.send({
+  private trySend(event: WireEvent): void {
+    this.opts.socket.send(event).catch((err: unknown) => {
+      // Frames produced while the relay is reconnecting are dropped (spec §6).
+      // The send failure must never crash the daemon or disturb the backoff.
+      this.opts.onError?.(
+        `dropped ${event.event} frame while relay reconnecting: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    });
+  }
+
+  private sendTerminal(chunk: string): void {
+    this.trySend({
       event: "TERMINAL_DATA",
       meta: { session_id: this.opts.sessionId },
       payload: { chunk },

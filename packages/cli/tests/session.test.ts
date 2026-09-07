@@ -30,6 +30,42 @@ class FakeSocket {
       await new Promise((r) => setTimeout(r, 25));
     }
   }
+  async until(pred: (events: WireEvent[]) => boolean, timeoutMs = 5000): Promise<void> {
+    const start = Date.now();
+    while (!pred(this.sent)) {
+      if (Date.now() - start > timeoutMs) throw new Error("timeout waiting for events");
+      await new Promise((r) => setTimeout(r, 25));
+    }
+  }
+}
+
+class OfflineFirstSocket {
+  sent: WireEvent[] = [];
+  handler: ((event: WireEvent) => void) | undefined;
+  offline = true;
+  dropped: string[] = [];
+  onEvent(handler: (event: WireEvent) => void): void {
+    this.handler = handler;
+  }
+  async send(event: WireEvent): Promise<void> {
+    if (this.offline) {
+      this.dropped.push(event.event);
+      throw new Error("socket is not open; frame dropped (no offline queue)");
+    }
+    this.sent.push(event);
+  }
+  joined(): string {
+    return this.sent
+      .map((e) => (e.payload as { chunk?: string }).chunk ?? "")
+      .join("");
+  }
+  async until(pred: (socket: OfflineFirstSocket) => boolean, timeoutMs = 5000): Promise<void> {
+    const start = Date.now();
+    while (!pred(this)) {
+      if (Date.now() - start > timeoutMs) throw new Error("timeout waiting for events");
+      await new Promise((r) => setTimeout(r, 25));
+    }
+  }
 }
 
 function stubAgent(dir: string, body: string): string {
@@ -151,6 +187,31 @@ describe("AgentSession", () => {
       .map((e) => (e.payload as { chunk: string }).chunk)
       .join("");
     expect(chunks).toContain("prompted:list the src dir");
+    session.stop();
+  });
+
+  it("drops frames without crashing while the socket is reconnecting", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    const agent = stubAgent(dir, 'printf "one\\n"; sleep 0.4; printf "two\\n"');
+    const socket = new OfflineFirstSocket();
+    const errors: string[] = [];
+    const session = new AgentSession({
+      agent: "claude",
+      command: "bash",
+      args: [agent],
+      cwd: dir,
+      socket: socket as never,
+      sessionId: "sess_1",
+      config: { safeCommands: [] },
+      onError: (message) => errors.push(message),
+    });
+    session.start();
+    await socket.until((s) => s.dropped.includes("TERMINAL_DATA"));
+    socket.offline = false;
+    await socket.until((s) => s.joined().includes("two"));
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain("TERMINAL_DATA");
+    expect(errors.join("\n")).not.toContain("one\\n"); // no frame bodies in errors
     session.stop();
   });
 });

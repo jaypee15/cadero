@@ -111,6 +111,7 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
       socket,
       sessionId,
       config,
+      onError: (message) => err(message),
     });
     session.start();
     out(`agent '${agent}' running in ${cwd} (session ${sessionId})`);
