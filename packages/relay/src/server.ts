@@ -57,13 +57,18 @@ export function createServer(options: ServerOptions): FastifyInstance {
     } catch {
       return reply.code(401).send({ error: "unauthorized" });
     }
-    const store = createRoomStore(options.redisUrl);
+    let room_id: string;
     try {
-      const room_id = await store.createRoom();
-      return { room_id };
-    } finally {
-      store.disconnect();
+      const store = createRoomStore(options.redisUrl);
+      try {
+        room_id = await store.createRoom();
+      } finally {
+        store.disconnect();
+      }
+    } catch {
+      return reply.code(503).send({ error: "relay unavailable" });
     }
+    return { room_id };
   });
 
   const oauthRedis = new Redis(options.redisUrl, { maxRetriesPerRequest: 3 });
@@ -77,7 +82,11 @@ export function createServer(options: ServerOptions): FastifyInstance {
       return reply.code(503).send({ error: "oauth not configured" });
     }
     const state = randomBytes(16).toString("hex");
-    await oauthRedis.set(`cadence:oauth:state:${state}`, "1", "EX", OAUTH_STATE_TTL_SECONDS);
+    try {
+      await oauthRedis.set(`cadence:oauth:state:${state}`, "1", "EX", OAUTH_STATE_TTL_SECONDS);
+    } catch {
+      return reply.code(503).send({ error: "relay unavailable" });
+    }
     const authorize = new URL("https://github.com/login/oauth/authorize");
     authorize.searchParams.set("client_id", options.oauth.clientId);
     authorize.searchParams.set("redirect_uri", `${options.oauth.publicUrl}/v1/oauth/callback`);
@@ -96,7 +105,12 @@ export function createServer(options: ServerOptions): FastifyInstance {
       if (!code || !state) {
         return reply.code(400).send({ error: "invalid state" });
       }
-      const deleted = await oauthRedis.del(`cadence:oauth:state:${state}`);
+      let deleted: number;
+      try {
+        deleted = await oauthRedis.del(`cadence:oauth:state:${state}`);
+      } catch {
+        return reply.code(503).send({ error: "relay unavailable" });
+      }
       if (deleted !== 1) {
         return reply.code(400).send({ error: "invalid state" });
       }

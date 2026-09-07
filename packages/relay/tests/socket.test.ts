@@ -75,3 +75,38 @@ describe("room routing", () => {
     await app.close();
   }, 30000);
 });
+
+describe("close-code contract", () => {
+  it("closes with 4401 when verifyUser rejects", async () => {
+    const app = createServer({
+      redisUrl,
+      verifyUser: async () => {
+        throw new Error("GitHub auth failed");
+      },
+    });
+    await app.listen({ port: 0 });
+    const port = (app.server.address() as AddressInfo).port;
+    const closed = new Promise<{ code: number; reason: string }>((resolve) => {
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/v1/stream?room_id=room_x&token=t`);
+      ws.on("close", (code, reason) => resolve({ code, reason: reason.toString() }));
+    });
+    const result = await closed;
+    expect(result.code).toBe(4401);
+    await app.close();
+  });
+
+  it("closes with 4404 for an unknown room", async () => {
+    const app = createServer({ redisUrl, verifyUser: async () => "octocat" });
+    await app.listen({ port: 0 });
+    const port = (app.server.address() as AddressInfo).port;
+    const closed = new Promise<{ code: number }>((resolve) => {
+      const ws = new WebSocket(
+        `ws://127.0.0.1:${port}/v1/stream?room_id=room_0000000000000000&token=t`,
+      );
+      ws.on("close", (code) => resolve({ code }));
+    });
+    const result = await closed;
+    expect(result.code).toBe(4404);
+    await app.close();
+  });
+});
