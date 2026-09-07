@@ -24,6 +24,7 @@ describe("runCli", () => {
     const lines: string[] = [];
     const code = await runCli(["login"], {
       cadenceDir: dir,
+      env: { CADENCE_GITHUB_CLIENT_ID: "cid-test" },
       fetchImpl: fakeFetch({
         "https://github.com/login/device/code": {
           status: 200,
@@ -47,6 +48,49 @@ describe("runCli", () => {
     expect(lines.join("\n")).toContain("ABCD-1234");
     const { loadCredentials } = await import("../src/credentials.js");
     expect(await loadCredentials(dir)).toEqual({ githubToken: "tok123" });
+  });
+
+  it("login without CADENCE_GITHUB_CLIENT_ID exits 1 with guidance", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadence-main-"));
+    const errs: string[] = [];
+    const code = await runCli(["login"], {
+      cadenceDir: dir,
+      env: {},
+      stderr: (l) => errs.push(l),
+    });
+    expect(code).toBe(1);
+    expect(errs.join("\n")).toContain("CADENCE_GITHUB_CLIENT_ID");
+  });
+
+  it("login uses CADENCE_GITHUB_CLIENT_ID from env", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadence-main-"));
+    const lines: string[] = [];
+    const code = await runCli(["login"], {
+      cadenceDir: dir,
+      env: { CADENCE_GITHUB_CLIENT_ID: "cid-env" },
+      fetchImpl: fakeFetch({
+        "https://github.com/login/device/code": {
+          status: 200,
+          body: {
+            device_code: "dev",
+            user_code: "ABCD-1234",
+            verification_uri: "https://github.com/login/device",
+            interval: 1,
+            expires_in: 10,
+          },
+        },
+        "https://github.com/login/oauth/access_token": {
+          status: 200,
+          body: { access_token: "tok123" },
+        },
+      }),
+      stdout: (l) => lines.push(l),
+      stderr: (l) => lines.push(l),
+    });
+    expect(code).toBe(0);
+    expect(await (await import("../src/credentials.js")).loadCredentials(dir)).toEqual({
+      githubToken: "tok123",
+    });
   });
 
   it("start without credentials exits 1 with guidance", async () => {

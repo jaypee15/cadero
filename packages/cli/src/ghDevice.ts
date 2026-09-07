@@ -1,6 +1,5 @@
 const DEVICE_CODE_URL = "https://github.com/login/device/code";
 const TOKEN_URL = "https://github.com/login/oauth/access_token";
-const CLIENT_ID = "REGISTERED_GITHUB_APP_CLIENT_ID_REQUIRED";
 
 interface DeviceCodeResponse {
   device_code?: string;
@@ -18,7 +17,10 @@ export interface DeviceCode {
   expiresIn: number;
 }
 
-export async function requestDeviceCode(fetchImpl: typeof fetch): Promise<DeviceCode> {
+export async function requestDeviceCode(
+  fetchImpl: typeof fetch,
+  clientId: string,
+): Promise<DeviceCode> {
   const res = await fetchImpl(DEVICE_CODE_URL, {
     method: "POST",
     headers: {
@@ -26,7 +28,7 @@ export async function requestDeviceCode(fetchImpl: typeof fetch): Promise<Device
       Accept: "application/json",
       "User-Agent": "cadence-cli",
     },
-    body: JSON.stringify({ client_id: CLIENT_ID, scope: "read:user" }),
+    body: JSON.stringify({ client_id: clientId, scope: "read:user" }),
   });
   if (!res.ok) throw new Error(`device code request failed: HTTP ${res.status}`);
   const body = (await res.json()) as DeviceCodeResponse;
@@ -61,6 +63,7 @@ export async function pollForAccessToken(
   fetchImpl: typeof fetch,
   deviceCode: string,
   opts: PollOptions,
+  clientId: string,
 ): Promise<string> {
   const sleep = opts.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
   const deadline = Date.now() + opts.expiresIn * 1000;
@@ -75,7 +78,7 @@ export async function pollForAccessToken(
         "User-Agent": "cadence-cli",
       },
       body: JSON.stringify({
-        client_id: CLIENT_ID,
+        client_id: clientId,
         device_code: deviceCode,
         grant_type: "urn:ietf:params:oauth:grant-type:device_code",
       }),

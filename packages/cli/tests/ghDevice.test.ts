@@ -21,7 +21,7 @@ describe("requestDeviceCode", () => {
         expires_in: 900,
       },
     });
-    const res = await requestDeviceCode(fetchImpl);
+    const res = await requestDeviceCode(fetchImpl, "cid-test");
     expect(res.user_code).toBe("ABCD-1234");
     expect(res.interval).toBe(5);
   });
@@ -39,7 +39,7 @@ describe("pollForAccessToken", () => {
     const token = await pollForAccessToken(fetchImpl, "dev123", {
       interval: 1,
       expiresIn: 30,
-    });
+    }, "cid-test");
     expect(token).toBe("tok123");
     expect(calls).toBe(2);
   });
@@ -58,7 +58,7 @@ describe("pollForAccessToken", () => {
       interval: 1,
       expiresIn: 30,
       sleep: sleep as unknown as (ms: number) => Promise<void>,
-    });
+    }, "cid-test");
     expect(token).toBe("tok");
     expect(sleep).toHaveBeenCalledWith(6000);
   });
@@ -73,7 +73,7 @@ describe("pollForAccessToken", () => {
         interval: 1,
         expiresIn: 2,
         sleep: () => Promise.resolve(),
-      }),
+      }, "cid-test"),
     ).rejects.toThrow("device code expired");
   });
 });

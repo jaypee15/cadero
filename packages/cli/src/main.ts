@@ -45,12 +45,22 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
   }
 
   if (command === "login") {
-    const device = await requestDeviceCode(fetchImpl);
+    const clientId = env.CADENCE_GITHUB_CLIENT_ID;
+    if (!clientId) {
+      err("CADENCE_GITHUB_CLIENT_ID is not set; register a GitHub OAuth app and set it to enable login");
+      return 1;
+    }
+    const device = await requestDeviceCode(fetchImpl, clientId);
     out(`Open ${device.verification_uri} and enter code: ${device.user_code}`);
-    const token = await pollForAccessToken(fetchImpl, device.device_code, {
-      interval: device.interval,
-      expiresIn: device.expiresIn,
-    });
+    const token = await pollForAccessToken(
+      fetchImpl,
+      device.device_code,
+      {
+        interval: device.interval,
+        expiresIn: device.expiresIn,
+      },
+      clientId,
+    );
     await saveCredentials(cadenceDir, { githubToken: token });
     out(`logged in; credentials saved to ${cadenceDir}/credentials.json`);
     return 0;
