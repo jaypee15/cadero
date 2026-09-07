@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { importSessionKey, parsePairingPayload } from "@cadence/protocol";
 import {
+  GAP_MARKER,
   initialSessionState,
   reduceSession,
   type SessionAction,
@@ -78,7 +79,10 @@ export function CadenceApp() {
             }
             dispatchIfOpen({ type: "EVENT", event });
           },
-          onGap: () => dispatchIfOpen({ type: "GAP" }),
+          onGap: () => {
+            termRef.current?.write(GAP_MARKER);
+            dispatchIfOpen({ type: "GAP" });
+          },
           onClosed: (code, reason) => dispatch({ type: "CLOSED", code, reason }),
           onFatal: () =>
             dispatch({
