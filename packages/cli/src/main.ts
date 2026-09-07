@@ -108,6 +108,12 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
         err(`relay closed the session (${code} ${reason}); exiting`);
         process.exit(1);
       },
+      onFatal: () => {
+        err(
+          "session key rejected by peer (decryption_failed); pairing mismatch — rescan the QR",
+        );
+        process.exit(1);
+      },
     });
     await socket.connect();
 
