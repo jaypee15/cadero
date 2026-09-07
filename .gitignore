@@ -3,3 +3,5 @@ node_modules/
 dist/
 .superpowers/
 *.log
+.next/
+out/
