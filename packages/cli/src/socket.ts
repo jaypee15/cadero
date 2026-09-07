@@ -105,6 +105,7 @@ export class CadenceSocket {
     const delay = this.backoffMs;
     this.backoffMs = Math.min(this.backoffMs * 2, MAX_BACKOFF_MS);
     setTimeout(() => {
+      if (this.closedByUser || this.reconnectDisabled) return;
       void this.connect().catch(() => {
         // connection refused: the close handler already scheduled the next retry
       });
@@ -131,7 +132,7 @@ export class CadenceSocket {
   async close(): Promise<void> {
     this.closedByUser = true;
     const ws = this.ws;
-    if (!ws) return;
+    if (!ws || ws.readyState === WebSocket.CLOSED) return;
     await new Promise<void>((resolve) => {
       ws.once("close", () => resolve());
       ws.close();
