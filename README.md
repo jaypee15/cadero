@@ -22,10 +22,10 @@ controls for every action the agent wants to take.
 2. Set the OAuth env vars for the relay (see Configuration) and restart it.
 3. On your dev machine, install the CLI from source (not yet published to npm):
    ```
-   git clone git@github.com:jaypee15/cadence.git
+   git clone https://github.com/jaypee15/cadence.git
    cd cadence
    npm install
-   npm run build --workspace=@cadence/cli
+   npm run build
    npm link ./packages/cli
    ```
 4. `cadence-cli login` (requires `CADENCE_GITHUB_CLIENT_ID` in your env)
