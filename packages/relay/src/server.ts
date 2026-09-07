@@ -1,7 +1,15 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import websocket from "@fastify/websocket";
 import { Redis } from "ioredis";
-import { verifyGitHubUser } from "./auth.js";
+import { randomBytes } from "node:crypto";
+import {
+  createVerifyUser,
+  exchangeOAuthCode,
+  OAUTH_STATE_TTL_SECONDS,
+  SESSION_TTL_SECONDS,
+  verifyGitHubUser,
+  type OAuthConfig,
+} from "./auth.js";
 import { createRoomStore } from "./rooms.js";
 import { registerStreamRoute } from "./socket.js";
 import type { VerifyUser } from "./socket.js";
@@ -9,6 +17,7 @@ import type { VerifyUser } from "./socket.js";
 export interface ServerOptions {
   redisUrl: string;
   verifyUser?: VerifyUser;
+  oauth?: OAuthConfig;
 }
 
 export function createServer(options: ServerOptions): FastifyInstance {
@@ -23,13 +32,12 @@ export function createServer(options: ServerOptions): FastifyInstance {
     // so unauthenticated callers learn nothing beyond up or down.
   });
 
+  const defaultVerify = options.verifyUser ? null : createVerifyUser(options.redisUrl);
+  const verifyUser = options.verifyUser ?? defaultVerify!;
+
   void app.register(async (app) => {
     await app.register(websocket);
-    registerStreamRoute(
-      app,
-      options.redisUrl,
-      options.verifyUser ?? verifyGitHubUser,
-    );
+    registerStreamRoute(app, options.redisUrl, verifyUser);
   });
 
   app.get("/health", async () => {
@@ -45,7 +53,7 @@ export function createServer(options: ServerOptions): FastifyInstance {
     const auth = request.headers.authorization ?? "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
     try {
-      await (options.verifyUser ?? verifyGitHubUser)(token);
+      await verifyUser(token);
     } catch {
       return reply.code(401).send({ error: "unauthorized" });
     }
@@ -58,8 +66,58 @@ export function createServer(options: ServerOptions): FastifyInstance {
     }
   });
 
+  const oauthRedis = new Redis(options.redisUrl, { maxRetriesPerRequest: 3 });
+  oauthRedis.on("error", () => {
+    // OAuth state writes/reads fail closed via route handlers; connection
+    // errors stay silent here.
+  });
+
+  app.get("/v1/oauth/login", async (_request, reply) => {
+    if (!options.oauth) {
+      return reply.code(503).send({ error: "oauth not configured" });
+    }
+    const state = randomBytes(16).toString("hex");
+    await oauthRedis.set(`cadence:oauth:state:${state}`, "1", "EX", OAUTH_STATE_TTL_SECONDS);
+    const authorize = new URL("https://github.com/login/oauth/authorize");
+    authorize.searchParams.set("client_id", options.oauth.clientId);
+    authorize.searchParams.set("redirect_uri", `${options.oauth.publicUrl}/v1/oauth/callback`);
+    authorize.searchParams.set("scope", "read:user");
+    authorize.searchParams.set("state", state);
+    return reply.redirect(authorize.toString());
+  });
+
+  app.get<{ Querystring: { code?: string; state?: string } }>(
+    "/v1/oauth/callback",
+    async (request, reply) => {
+      if (!options.oauth) {
+        return reply.code(503).send({ error: "oauth not configured" });
+      }
+      const { code, state } = request.query;
+      if (!code || !state) {
+        return reply.code(400).send({ error: "invalid state" });
+      }
+      const deleted = await oauthRedis.del(`cadence:oauth:state:${state}`);
+      if (deleted !== 1) {
+        return reply.code(400).send({ error: "invalid state" });
+      }
+      try {
+        const githubToken = await exchangeOAuthCode(options.oauth, code);
+        const login = await verifyGitHubUser(githubToken, options.oauth.fetchImpl);
+        const token = `cadence_${randomBytes(16).toString("hex")}`;
+        await oauthRedis.set(`cadence:session:${token}`, login, "EX", SESSION_TTL_SECONDS);
+        const target = new URL(options.oauth.appUrl);
+        target.hash = `token=${token}`;
+        return reply.redirect(target.toString());
+      } catch {
+        return reply.code(401).send({ error: "oauth exchange failed" });
+      }
+    },
+  );
+
   app.addHook("onClose", async () => {
     redis.disconnect();
+    oauthRedis.disconnect();
+    if (defaultVerify) defaultVerify.disconnect();
   });
 
   return app;
