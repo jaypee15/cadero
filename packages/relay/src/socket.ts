@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { Redis } from "ioredis";
+import { randomBytes } from "node:crypto";
 import type { RawData } from "ws";
 import { EncryptedEnvelopeSchema } from "@cadence/protocol";
 import { redactForLog } from "./logging.js";
@@ -101,10 +102,20 @@ export function registerStreamRoute(
 
       subscriber = new Redis(redisUrl);
       publisher = new Redis(redisUrl);
+      const originId = randomBytes(16).toString("hex");
       await subscriber.subscribe(framesChannel(roomId));
       subscriber.on("message", (_channel, message) => {
+        let parsed: { from?: string; frame?: string };
+        try {
+          parsed = JSON.parse(message);
+        } catch {
+          return;
+        }
+        if (parsed.from === originId || typeof parsed.frame !== "string") {
+          return;
+        }
         if (socket.readyState === 1) {
-          socket.send(message);
+          socket.send(parsed.frame);
         }
       });
 
@@ -113,7 +124,8 @@ export function registerStreamRoute(
         if (members) {
           await Promise.all([...members].map((m) => m.ready));
         }
-        await publisher!.publish(framesChannel(roomId), JSON.stringify(envelope));
+        const wrapper = JSON.stringify({ from: originId, frame: JSON.stringify(envelope) });
+        await publisher!.publish(framesChannel(roomId), wrapper);
       }
 
       processMessage = async (raw) => {

@@ -45,6 +45,13 @@ describe("room routing", () => {
     cli.send(JSON.stringify(envelope));
     expect(JSON.parse(await received)).toEqual(envelope);
 
+    let cliEcho: string | null = null;
+    cli.once("message", (data) => {
+      cliEcho = data.toString();
+    });
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(cliEcho).toBeNull();
+
     cli.close();
     phone.close();
     await app.close();
