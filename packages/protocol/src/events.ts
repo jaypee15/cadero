@@ -37,15 +37,23 @@ export const ExecuteAgentPromptSchema = z.object({
   payload: z.object({ prompt: z.string().min(1).max(20000) }),
 });
 
+export const HeartbeatSchema = z.object({
+  event: z.literal("HEARTBEAT"),
+  meta: metaSchema,
+  payload: z.object({}).strict(),
+});
+
 export const WireEventSchema = z.discriminatedUnion("event", [
   TerminalDataSchema,
   InterceptRequiredSchema,
   ResolveInterceptSchema,
   ExecuteAgentPromptSchema,
+  HeartbeatSchema,
 ]);
 
 export type TerminalData = z.infer<typeof TerminalDataSchema>;
 export type InterceptRequired = z.infer<typeof InterceptRequiredSchema>;
 export type ResolveIntercept = z.infer<typeof ResolveInterceptSchema>;
 export type ExecuteAgentPrompt = z.infer<typeof ExecuteAgentPromptSchema>;
+export type Heartbeat = z.infer<typeof HeartbeatSchema>;
 export type WireEvent = z.infer<typeof WireEventSchema>;

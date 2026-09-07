@@ -27,6 +27,23 @@ describe("WireEventSchema", () => {
       meta: { session_id: "sess_91823" },
       payload: { decision: "MAYBE", input_payload: null },
     });
-    expect(parsed.success).toBe(false);
+      expect(parsed.success).toBe(false);
+  });
+
+  it("accepts a HEARTBEAT event and rejects one with a payload", () => {
+    expect(
+      WireEventSchema.safeParse({
+        event: "HEARTBEAT",
+        meta: { session_id: "sess_1" },
+        payload: {},
+      }).success,
+    ).toBe(true);
+    expect(
+      WireEventSchema.safeParse({
+        event: "HEARTBEAT",
+        meta: { session_id: "sess_1" },
+        payload: { chunk: "nope" },
+      }).success,
+    ).toBe(false);
   });
 });
