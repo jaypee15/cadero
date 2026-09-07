@@ -16,6 +16,10 @@ export interface RoomStore {
 
 export function createRoomStore(redisUrl: string): RoomStore {
   const redis = new Redis(redisUrl, { maxRetriesPerRequest: 3 });
+  redis.on("error", () => {
+    // Callers surface failures through rejected commands; connection errors
+    // stay silent so redis-down does not spam stderr.
+  });
 
   return {
     async createRoom(): Promise<string> {

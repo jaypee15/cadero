@@ -56,4 +56,22 @@ describe("room routing", () => {
     phone.close();
     await app.close();
   }, 15000);
+
+  it("closes the socket with 4403 when redis is unreachable during join", async () => {
+    const app = createServer({
+      redisUrl: "redis://127.0.0.1:6390",
+      verifyUser: async () => "test-user",
+    });
+    await app.listen({ port: 0 });
+    const port = (app.server.address() as AddressInfo).port;
+
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/v1/stream?room_id=room_x&token=t1`);
+    const closed = new Promise<[number, string]>((resolve, reject) => {
+      ws.once("close", (code, reason) => resolve([code, reason.toString()]));
+      ws.once("error", reject);
+    });
+    expect(await closed).toEqual([4403, "redis unavailable"]);
+
+    await app.close();
+  }, 30000);
 });

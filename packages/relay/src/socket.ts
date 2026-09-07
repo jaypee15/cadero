@@ -89,21 +89,37 @@ export function registerStreamRoute(
         store.disconnect();
       });
 
+      let originId = "";
       try {
         await verifyUser(token);
       } catch {
         socket.close(4401, "unauthorized");
         return;
       }
-      if (!(await store.roomExists(roomId))) {
-        socket.close(4404, "unknown room");
+
+      try {
+        if (!(await store.roomExists(roomId))) {
+          socket.close(4404, "unknown room");
+          return;
+        }
+
+        subscriber = new Redis(redisUrl);
+        publisher = new Redis(redisUrl);
+        subscriber.on("error", () => {});
+        publisher.on("error", () => {});
+        originId = randomBytes(16).toString("hex");
+        await subscriber.subscribe(framesChannel(roomId));
+      } catch {
+        request.log.warn(`join failed, redis unavailable in room ${roomId}`);
+        resolveReady();
+        leaveRoom(roomId, member);
+        subscriber?.disconnect();
+        publisher?.disconnect();
+        store.disconnect();
+        socket.close(4403, "redis unavailable");
         return;
       }
 
-      subscriber = new Redis(redisUrl);
-      publisher = new Redis(redisUrl);
-      const originId = randomBytes(16).toString("hex");
-      await subscriber.subscribe(framesChannel(roomId));
       subscriber.on("message", (_channel, message) => {
         let parsed: { from?: string; frame?: string };
         try {
