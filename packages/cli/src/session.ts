@@ -162,6 +162,7 @@ export class AgentSession {
             chunk: `\n[intercept timed out after ${seconds}s; command denied — session ending]\n`,
           },
         });
+        this.opts.onError?.("intercept timed out; command denied; session ending");
         const socket = this.opts.socket as { close?: () => void };
         if (typeof socket.close === "function") socket.close();
         this.stop();
