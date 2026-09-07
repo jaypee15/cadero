@@ -5,3 +5,4 @@ dist/
 *.log
 .next/
 out/
+next-env.d.ts
