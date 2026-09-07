@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { randomBytes } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
