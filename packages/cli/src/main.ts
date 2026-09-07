@@ -16,6 +16,8 @@ export interface RunOptions {
   fetchImpl?: typeof fetch;
   stdout?: (line: string) => void;
   stderr?: (line: string) => void;
+  /** Override for the process.stdout.isTTY check (tests). */
+  isTTY?: boolean;
 }
 
 const USAGE = `cadence-cli — control local AI agents from your phone
@@ -87,7 +89,12 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
     );
     const qr = await import("qrcode");
     out(await qr.toString(qrPayload, { type: "terminal" }));
-    out(qrPayload);
+    // Zero-knowledge: the raw session key stays on the visible terminal
+    // (manual fallback for a failed scan). Never expose it to redirects,
+    // so only print it when stdout is an interactive TTY.
+    if (opts.isTTY ?? process.stdout.isTTY) {
+      out(qrPayload);
+    }
     out(`Scan with your phone. Relay: ${relayUrl}  Room: ${roomId}`);
 
     const sessionId = `sess_${randomBytes(8).toString("hex")}`;
