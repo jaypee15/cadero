@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import websocket from "@fastify/websocket";
 import { Redis } from "ioredis";
 import { verifyGitHubUser } from "./auth.js";
+import { createRoomStore } from "./rooms.js";
 import { registerStreamRoute } from "./socket.js";
 import type { VerifyUser } from "./socket.js";
 
@@ -37,6 +38,23 @@ export function createServer(options: ServerOptions): FastifyInstance {
       return { status: "ok", redis: "up" as const };
     } catch {
       return { status: "ok", redis: "down" as const };
+    }
+  });
+
+  app.post("/v1/pair", async (request, reply) => {
+    const auth = request.headers.authorization ?? "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+    try {
+      await (options.verifyUser ?? verifyGitHubUser)(token);
+    } catch {
+      return reply.code(401).send({ error: "unauthorized" });
+    }
+    const store = createRoomStore(options.redisUrl);
+    try {
+      const room_id = await store.createRoom();
+      return { room_id };
+    } finally {
+      store.disconnect();
     }
   });
 
