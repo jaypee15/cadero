@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { Redis } from "ioredis";
 import type { RawData } from "ws";
 import { EncryptedEnvelopeSchema } from "@cadence/protocol";
+import { redactForLog } from "./logging.js";
 import { createRoomStore } from "./rooms.js";
 
 export type VerifyUser = (token: string) => Promise<string>;
@@ -120,12 +121,12 @@ export function registerStreamRoute(
         try {
           parsed = JSON.parse(raw.toString());
         } catch {
-          request.log.warn("dropped frame [body redacted]");
+          request.log.warn(redactForLog({ room_id: roomId }));
           return;
         }
         const envelope = EncryptedEnvelopeSchema.safeParse(parsed);
         if (!envelope.success || envelope.data.room_id !== roomId) {
-          request.log.warn("dropped frame [body redacted]");
+          request.log.warn(redactForLog(parsed));
           return;
         }
         await publishEnvelope(envelope.data);
