@@ -12,14 +12,21 @@ export type EncryptedEnvelope = z.infer<typeof EncryptedEnvelopeSchema>;
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
-function toBase64(bytes: Uint8Array): string {
-  return Buffer.from(bytes).toString("base64");
+export function bytesToBase64Url(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function fromBase64(raw: string): Uint8Array<ArrayBuffer> {
-  const bytes = Buffer.from(raw, "base64");
-  const out = new Uint8Array(bytes.byteLength);
-  out.set(bytes);
+export function base64UrlToBytes(raw: string): Uint8Array<ArrayBuffer> {
+  const padded = raw.replace(/-/g, "+").replace(/_/g, "/");
+  const binary = atob(padded + "=".repeat((4 - (padded.length % 4)) % 4));
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    out[i] = binary.charCodeAt(i);
+  }
   return out;
 }
 
@@ -56,8 +63,8 @@ export async function encryptRaw(
   );
   return {
     room_id: roomId,
-    iv: toBase64(iv),
-    ciphertext: toBase64(new Uint8Array(encoded)),
+    iv: bytesToBase64Url(iv),
+    ciphertext: bytesToBase64Url(new Uint8Array(encoded)),
   };
 }
 
@@ -80,9 +87,9 @@ export async function decryptEnvelope(
   let plain: ArrayBuffer;
   try {
     plain = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: fromBase64(parsed.data.iv) },
+      { name: "AES-GCM", iv: base64UrlToBytes(parsed.data.iv) },
       key,
-      fromBase64(parsed.data.ciphertext),
+      base64UrlToBytes(parsed.data.ciphertext),
     );
   } catch {
     throw new EnvelopeError("decryption_failed", "envelope failed to decrypt with this key");

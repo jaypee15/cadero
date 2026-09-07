@@ -1,11 +1,11 @@
+import { base64UrlToBytes, bytesToBase64Url } from "./envelope.js";
+
 export async function importSessionKey(rawBase64Url: string): Promise<CryptoKey> {
-  const bytes = Buffer.from(rawBase64Url, "base64url");
+  const bytes = base64UrlToBytes(rawBase64Url);
   if (bytes.byteLength !== 32) {
     throw new Error("session key must be 32 raw bytes");
   }
-  const out = new Uint8Array(bytes.byteLength);
-  out.set(bytes);
-  return crypto.subtle.importKey("raw", out, "AES-GCM", true, [
+  return crypto.subtle.importKey("raw", bytes, "AES-GCM", true, [
     "encrypt",
     "decrypt",
   ]);
@@ -13,5 +13,5 @@ export async function importSessionKey(rawBase64Url: string): Promise<CryptoKey>
 
 export async function exportSessionKey(key: CryptoKey): Promise<string> {
   const raw = await crypto.subtle.exportKey("raw", key);
-  return Buffer.from(new Uint8Array(raw)).toString("base64url");
+  return bytesToBase64Url(new Uint8Array(raw));
 }

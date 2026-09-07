@@ -36,30 +36,7 @@ export async function pairSession(
   return { roomId, sessionKey, qrPayload };
 }
 
-export interface ParsedPairing {
-  relay: string;
-  room: string;
-  key: string;
-}
-
-export function parsePairingPayload(payload: string): ParsedPairing {
-  let url: URL;
-  try {
-    url = new URL(payload);
-  } catch {
-    throw new Error("not a cadence pairing payload");
-  }
-  if (url.protocol !== "cadence:" || url.hostname !== "pair" || url.searchParams.get("v") !== "1") {
-    throw new Error("not a cadence pairing payload");
-  }
-  const relay = url.searchParams.get("relay");
-  const room = url.searchParams.get("room");
-  const key = url.searchParams.get("key");
-  if (!relay || !room || !key) {
-    throw new Error("not a cadence pairing payload");
-  }
-  return { relay, room, key };
-}
+export { parsePairingPayload, type ParsedPairing } from "@cadence/protocol";
 
 // Re-export so mobile-side tooling and tests can import from one place.
 export { importSessionKey };
