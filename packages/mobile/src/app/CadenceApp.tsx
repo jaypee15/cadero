@@ -231,7 +231,10 @@ export function CadenceApp() {
           />
         )}
       </div>
-      <PromptInput disabled={state.intercept !== null} onSend={(p) => void sendPrompt(p)} />
+      <PromptInput
+        disabled={state.intercept !== null || state.phase !== "live"}
+        onSend={(p) => void sendPrompt(p)}
+      />
     </main>
   );
 }
