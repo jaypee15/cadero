@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspace=@cadence/protocol && npm run build --workspace=@cadence/relay && npm run build --workspace=@cadence/cli",
+    "postinstall": "sh scripts/postinstall.sh",
     "typecheck": "tsc --noEmit -p tsconfig.base.json"
   },
   "devDependencies": {
