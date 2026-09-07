@@ -10,7 +10,7 @@ import {
   type SessionState,
 } from "../state/sessionState";
 import { decodeQrFromImageData } from "../pairing/scanQr";
-import { createCameraScanner } from "../pairing/camera";
+import { createCameraScanner, type CameraScanner } from "../pairing/camera";
 import { MobileSocket } from "../realtime/socket";
 import { TerminalView, type TerminalApi } from "../components/TerminalView";
 import { InterceptOverlay } from "../components/InterceptOverlay";
@@ -25,6 +25,7 @@ export function CadenceApp() {
   const socketRef = useRef<MobileSocket | null>(null);
   const termRef = useRef<TerminalApi | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const scannerRef = useRef<CameraScanner | undefined>(undefined);
   const [manualPayload, setManualPayload] = useState("");
   const [scanning, setScanning] = useState(false);
 
@@ -52,6 +53,8 @@ export function CadenceApp() {
   const startSession = useCallback(
     async (parsed: { relay: string; room: string; key: string }) => {
       try {
+        scannerRef.current?.stop();
+        scannerRef.current = undefined;
         const sessionKey = await importSessionKey(parsed.key);
         const token = readOAuthTokenFromHash();
         if (!token) {
@@ -95,6 +98,7 @@ export function CadenceApp() {
     if (!video) return;
     setScanning(true);
     const scanner = createCameraScanner(video);
+    scannerRef.current = scanner;
     try {
       await scanner.start((imageData) => {
         try {
@@ -158,9 +162,10 @@ export function CadenceApp() {
   useEffect(() => {
     return () => {
       void socketRef.current?.close();
+      scannerRef.current?.stop();
+      scannerRef.current = undefined;
     };
   }, []);
-
   if (state.phase === "closed") {
     return (
       <main className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
