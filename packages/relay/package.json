@@ -2,6 +2,16 @@
   "name": "@cadence/relay",
   "version": "0.1.0",
   "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./*.js": "./dist/*.js",
+    "./server": "./dist/server.js",
+    "./rooms": "./dist/rooms.js",
+    "./auth": "./dist/auth.js",
+    "./socket": "./dist/socket.js",
+    "./logging": "./dist/logging.js",
+    "./main": "./dist/main.js"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
