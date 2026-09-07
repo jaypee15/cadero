@@ -6,6 +6,7 @@ import { createServer } from "./server.js";
 
 export interface MainOptions {
   env?: NodeJS.ProcessEnv;
+  fetchImpl?: typeof fetch;
 }
 
 export interface MainResult {
@@ -37,8 +38,34 @@ export async function runMain(options: MainOptions = {}): Promise<MainResult> {
     probe.disconnect();
   }
 
-  const app = createServer({ redisUrl });
-  const port = Number(env.PORT) || 8787;
+  const oauthValues = {
+    clientId: env.GITHUB_OAUTH_CLIENT_ID,
+    clientSecret: env.GITHUB_OAUTH_CLIENT_SECRET,
+    publicUrl: env.CADENCE_RELAY_PUBLIC_URL,
+    appUrl: env.CADENCE_APP_URL,
+  };
+  const setCount = Object.values(oauthValues).filter(
+    (v) => v !== undefined && v !== "",
+  ).length;
+  const oauth =
+    setCount === 0
+      ? undefined
+      : setCount === 4
+        ? {
+            clientId: oauthValues.clientId as string,
+            clientSecret: oauthValues.clientSecret as string,
+            publicUrl: oauthValues.publicUrl as string,
+            appUrl: oauthValues.appUrl as string,
+            fetchImpl: options.fetchImpl,
+          }
+        : (() => {
+            throw new Error(
+              "oauth env incomplete: set all of GITHUB_OAUTH_CLIENT_ID, GITHUB_OAUTH_CLIENT_SECRET, CADENCE_RELAY_PUBLIC_URL, CADENCE_APP_URL (or none to disable the portal)",
+            );
+          })();
+
+  const app = createServer({ redisUrl, oauth });
+  const port = env.PORT === "0" ? 0 : Number(env.PORT) || 8787;
   await app.listen({ port, host: "0.0.0.0" });
   const bound = (app.server.address() as AddressInfo).port;
   console.log(`cadence relay listening on :${bound}`);

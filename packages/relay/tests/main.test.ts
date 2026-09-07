@@ -20,3 +20,35 @@ describe("main entrypoint", () => {
     await app.close();
   });
 });
+
+describe("oauth env wiring", () => {
+  it("fails loudly on a partial oauth env", async () => {
+    await expect(
+      runMain({
+        env: {
+          REDIS_URL: redisUrl,
+          GITHUB_OAUTH_CLIENT_ID: "cid",
+        },
+      }),
+    ).rejects.toThrow("oauth env incomplete");
+  });
+
+  it("wires the portal when the full quartet is set", async () => {
+    const fetchImpl = (async () =>
+      new Response(JSON.stringify({}), { status: 200 })) as typeof fetch;
+    const { app } = await runMain({
+      env: {
+        REDIS_URL: redisUrl,
+        PORT: "0",
+        GITHUB_OAUTH_CLIENT_ID: "cid",
+        GITHUB_OAUTH_CLIENT_SECRET: "sec",
+        CADENCE_RELAY_PUBLIC_URL: "https://relay.example.com",
+        CADENCE_APP_URL: "https://app.example.com",
+      },
+      fetchImpl,
+    });
+    const res = await app.inject({ method: "GET", url: "/v1/oauth/login" });
+    expect(res.statusCode).toBe(302);
+    await app.close();
+  });
+});

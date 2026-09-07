@@ -1,0 +1,29 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  relay:
+    build:
+      context: .
+      dockerfile: packages/relay/Dockerfile
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+      PORT: "8787"
+      GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID:-}
+      GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
+      CADENCE_RELAY_PUBLIC_URL: ${CADENCE_RELAY_PUBLIC_URL:-}
+      CADENCE_APP_URL: ${CADENCE_APP_URL:-}
+    depends_on:
+      - redis
+
+  web:
+    build:
+      context: .
+      dockerfile: packages/mobile/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - relay

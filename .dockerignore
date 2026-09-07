@@ -1,0 +1,9 @@
+node_modules
+**/node_modules
+.worktrees
+.superpowers
+docs
+*.md
+packages/*/dist
+packages/*/out
+packages/mobile/.next
