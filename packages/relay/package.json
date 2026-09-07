@@ -5,7 +5,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "start": "node ./dist/server.js"
+    "start": "node ./dist/main.js"
   },
   "dependencies": {
     "@cadence/protocol": "0.1.0",
