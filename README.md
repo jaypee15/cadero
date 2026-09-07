@@ -20,7 +20,14 @@ controls for every action the agent wants to take.
 
 1. `docker compose up -d` — starts Redis, the relay, and the PWA (port 8080).
 2. Set the OAuth env vars for the relay (see Configuration) and restart it.
-3. On your dev machine: `npm install -g @cadence/cli`
+3. On your dev machine, install the CLI from source (not yet published to npm):
+   ```
+   git clone git@github.com:jaypee15/cadence.git
+   cd cadence
+   npm install
+   npm run build --workspace=@cadence/cli
+   npm link ./packages/cli
+   ```
 4. `cadence-cli login` (requires `CADENCE_GITHUB_CLIENT_ID` in your env)
 5. `cadence-cli start --relay-url http://your-server:8080`
 6. Scan the terminal QR with your phone.
