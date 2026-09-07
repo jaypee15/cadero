@@ -10,6 +10,9 @@ import {
 const BASE_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 30000;
 
+export const HEARTBEAT_INTERVAL_MS = 20000;
+export const STALE_AFTER_MS = 45000;
+
 export interface CadenceSocketOptions {
   relayUrl: string;
   roomId: string;
@@ -28,6 +31,9 @@ export class CadenceSocket {
   private reconnectDisabled = false;
   private eventHandler: ((event: WireEvent) => void) | undefined;
   private connecting: Promise<void> | undefined;
+  private heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+  private staleTimer: ReturnType<typeof setInterval> | undefined;
+  private lastReceivedAt = Date.now();
 
   constructor(opts: CadenceSocketOptions) {
     this.opts = opts;
@@ -55,6 +61,17 @@ export class CadenceSocket {
       ws.on("open", () => {
         settled = true;
         this.backoffMs = BASE_BACKOFF_MS;
+        this.lastReceivedAt = Date.now();
+        this.heartbeatTimer = setInterval(() => {
+          void this.send({
+            event: "HEARTBEAT",
+            meta: { session_id: this.opts.sessionId },
+            payload: {},
+          }).catch(() => {
+            /* send failure on a dying socket: staleness/close path owns recovery */
+          });
+        }, HEARTBEAT_INTERVAL_MS);
+        this.staleTimer = setInterval(() => this.maybeForceReconnect(), 5000);
         resolve();
       });
       ws.on("message", (data) => this.handleRaw(data.toString()));
@@ -75,6 +92,7 @@ export class CadenceSocket {
   }
 
   private handleRaw(raw: string): void {
+    this.lastReceivedAt = Date.now();
     let envelope: unknown;
     try {
       envelope = JSON.parse(raw);
@@ -95,7 +113,16 @@ export class CadenceSocket {
       });
   }
 
+  private maybeForceReconnect(): void {
+    if (this.closedByUser || this.reconnectDisabled) return;
+    const ws = this.ws;
+    if (!ws || ws.readyState !== 1) return;
+    if (Date.now() - this.lastReceivedAt <= STALE_AFTER_MS) return;
+    ws.close(); // handleClose schedules the reconnect with backoff
+  }
+
   private handleClose(code: number, reason: string): void {
+    this.clearTimers();
     if (code === 4401 || code === 4404) {
       this.reconnectDisabled = true;
       this.opts.onClose?.(code, reason);
@@ -131,11 +158,19 @@ export class CadenceSocket {
 
   async close(): Promise<void> {
     this.closedByUser = true;
+    this.clearTimers();
     const ws = this.ws;
     if (!ws || ws.readyState === WebSocket.CLOSED) return;
     await new Promise<void>((resolve) => {
       ws.once("close", () => resolve());
       ws.close();
     });
+  }
+
+  private clearTimers(): void {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = undefined;
+    if (this.staleTimer) clearInterval(this.staleTimer);
+    this.staleTimer = undefined;
   }
 }

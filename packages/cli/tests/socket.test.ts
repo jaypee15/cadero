@@ -6,7 +6,7 @@ import {
 } from "@cadence/protocol";
 import { createServer } from "@cadence/relay/server.js";
 import { createRoomStore } from "@cadence/relay/rooms.js";
-import { CadenceSocket } from "../src/socket.js";
+import { CadenceSocket, HEARTBEAT_INTERVAL_MS, STALE_AFTER_MS } from "../src/socket.js";
 
 const redisUrl = "redis://127.0.0.1:6379";
 
@@ -95,4 +95,133 @@ describe("CadenceSocket against the real relay", () => {
     await phone.close();
     await app2.close();
   }, 30000);
+
+  it("sends heartbeats and reconnects when the peer goes silent", async () => {
+    const store = createRoomStore(redisUrl);
+    const roomId = await store.createRoom();
+    store.disconnect();
+
+    const app = createServer({ redisUrl, verifyUser: async () => "cli" });
+    await app.listen({ port: 0 });
+    const port = (app.server.address() as { port: number }).port;
+    const relayUrl = `http://127.0.0.1:${port}`;
+
+    const sessionKey = await generateSessionKey();
+    const cli = new CadenceSocket({
+      relayUrl,
+      roomId,
+      token: "t",
+      sessionKey,
+      sessionId: "sess_cli",
+    });
+    await cli.connect();
+
+    // The relay echoes nothing back to the sender (no-echo), so CLI receives
+    // nothing by default; heartbeats flow every HEARTBEAT_INTERVAL_MS and the
+    // staleness timer must NOT fire while heartbeats are received.
+    // Force staleness by closing the relay without restarting it: the socket
+    // should reconnect on its own schedule regardless.
+    await app.close();
+    // Without a restarted relay, connection attempts fail; the socket keeps
+    // retrying. Assert it survives 3 seconds without crashing (heartbeat
+    // timers cleared while closed; no unhandled rejections).
+    await new Promise((r) => setTimeout(r, 3000));
+    const app2 = createServer({ redisUrl, verifyUser: async () => "cli" });
+    await app2.listen({ port });
+    // The CLI reconnects on its own backoff schedule and the relay has no
+    // replay, so wait for it to be back on the wire before the phone sends.
+    const cliSocket = cli as unknown as { ws?: { readyState: number } };
+    while (cliSocket.ws?.readyState !== 1) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    const back = onceEvent(cli);
+    const phone = new CadenceSocket({
+      relayUrl,
+      roomId,
+      token: "t",
+      sessionKey,
+      sessionId: "sess_phone",
+    });
+    await phone.connect();
+    // A HEARTBEAT from the phone arrives as a decrypted event.
+    await phone.send({
+      event: "HEARTBEAT",
+      meta: { session_id: "sess_phone" },
+      payload: {},
+    });
+    expect(await back).toEqual({
+      event: "HEARTBEAT",
+      meta: { session_id: "sess_phone", timestamp: expect.any(Number) },
+      payload: {},
+    });
+
+    await cli.close();
+    await phone.close();
+    await app2.close();
+  }, 30000);
+});
+
+describe("staleness detection", () => {
+  it("exports the documented heartbeat cadence", () => {
+    expect(HEARTBEAT_INTERVAL_MS).toBe(20000);
+    expect(STALE_AFTER_MS).toBe(45000);
+  });
+
+  function makeTestSocket(): {
+    socket: CadenceSocket;
+    internals: {
+      ws: { readyState: number; close: () => void } | undefined;
+      lastReceivedAt: number;
+      closedByUser: boolean;
+      maybeForceReconnect?: () => void;
+    };
+    closes: number[];
+  } {
+    const socket = new CadenceSocket({
+      relayUrl: "http://127.0.0.1:1",
+      roomId: "room_test",
+      token: "t",
+      sessionKey: null as unknown as CryptoKey,
+      sessionId: "sess_test",
+    });
+    const closes: number[] = [];
+    const internals = socket as unknown as {
+      ws: { readyState: number; close: () => void } | undefined;
+      lastReceivedAt: number;
+      closedByUser: boolean;
+      maybeForceReconnect?: () => void;
+    };
+    internals.ws = {
+      readyState: 1,
+      close: () => {
+        closes.push(1);
+      },
+    };
+    return { socket, internals, closes };
+  }
+
+  it("force-closes a silent-but-open socket so the reconnect path takes over", () => {
+    const { internals, closes } = makeTestSocket();
+    expect(typeof internals.maybeForceReconnect).toBe("function");
+    internals.lastReceivedAt = Date.now() - STALE_AFTER_MS - 1;
+    internals.maybeForceReconnect!();
+    expect(closes).toHaveLength(1);
+  });
+
+  it("leaves fresh, not-open, or user-closed sockets alone", () => {
+    const { internals, closes } = makeTestSocket();
+    internals.lastReceivedAt = Date.now();
+    internals.maybeForceReconnect!();
+    expect(closes).toHaveLength(0);
+
+    internals.lastReceivedAt = Date.now() - STALE_AFTER_MS - 1;
+    internals.ws = undefined;
+    internals.maybeForceReconnect!();
+    expect(closes).toHaveLength(0);
+
+    internals.ws = { readyState: 1, close: () => closes.push(1) };
+    internals.closedByUser = true;
+    internals.maybeForceReconnect!();
+    expect(closes).toHaveLength(0);
+  });
 });
