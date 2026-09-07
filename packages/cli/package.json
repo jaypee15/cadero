@@ -1,0 +1,22 @@
+{
+  "name": "@cadence/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": { "cadence-cli": "./dist/main.js" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@cadence/protocol": "0.1.0",
+    "node-pty": "^1.0.0",
+    "qrcode": "^1.5.4",
+    "ws": "^8.18.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/ws": "^8.5.12"
+  }
+}
