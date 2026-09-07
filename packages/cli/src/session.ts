@@ -2,6 +2,9 @@ import type { WireEvent } from "@cadence/protocol";
 import { createPtySession, type PtySession } from "./pty.js";
 import { findIntercept, isSafeCommand, type AgentName } from "./intercept.js";
 
+/** Spec §6: an intercept with no mobile response is denied after 15 minutes. */
+export const INTERCEPT_TIMEOUT_MS = 900000;
+
 export interface AgentSessionOptions {
   agent: AgentName;
   command: string;
@@ -13,6 +16,7 @@ export interface AgentSessionOptions {
   sessionId: string;
   config: { safeCommands: string[] };
   autoApproveText?: string;
+  interceptTimeoutMs?: number;
   onError?: (message: string) => void;
 }
 
@@ -27,6 +31,7 @@ export class AgentSession {
   private buffer = "";
   private lineBuffer = "";
   private prevLine = "";
+  private timeoutTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(opts: AgentSessionOptions) {
     this.opts = opts;
@@ -44,6 +49,7 @@ export class AgentSession {
   }
 
   stop(): void {
+    this.clearInterceptTimeout();
     this.pty?.kill();
     this.pty = undefined;
   }
@@ -66,6 +72,7 @@ export class AgentSession {
         return;
       }
       this.pending = { command: hit.command };
+      this.armInterceptTimeout();
       // Flush everything up to and including the matched prompt; anything
       // after it waits behind the pending intercept.
       const matchStart = Math.max(0, hit.end - prefix.length);
@@ -105,6 +112,7 @@ export class AgentSession {
   private handleRemote(event: WireEvent): void {
     if (event.event === "RESOLVE_INTERCEPT") {
       if (!this.pending) return; // stray resolution: nothing to resolve
+      this.clearInterceptTimeout();
       if (event.payload.decision === "APPROVE") {
         this.pty?.write(event.payload.input_payload ?? "y\r");
       } else {
@@ -128,6 +136,7 @@ export class AgentSession {
     this.lineBuffer = "";
     if (tail.length > 0) this.sendTerminal(tail);
     if (this.pending) {
+      this.clearInterceptTimeout();
       const flushed = this.buffer;
       this.buffer = "";
       this.pending = undefined;
@@ -135,6 +144,34 @@ export class AgentSession {
     }
     this.sendTerminal(`\n[session exited with code ${code}]\n`);
     this.pty = undefined;
+  }
+
+  private armInterceptTimeout(): void {
+    const ms = this.opts.interceptTimeoutMs ?? INTERCEPT_TIMEOUT_MS;
+    this.timeoutTimer = setTimeout(() => {
+      void (async () => {
+        if (!this.pending) return;
+        this.clearInterceptTimeout();
+        this.pending = undefined;
+        this.pty?.write("\u001b");
+        const seconds = Math.round(ms / 1000);
+        await this.trySend({
+          event: "TERMINAL_DATA",
+          meta: { session_id: this.opts.sessionId },
+          payload: {
+            chunk: `\n[intercept timed out after ${seconds}s; command denied — session ending]\n`,
+          },
+        });
+        const socket = this.opts.socket as { close?: () => void };
+        if (typeof socket.close === "function") socket.close();
+        this.stop();
+      })();
+    }, ms);
+  }
+
+  private clearInterceptTimeout(): void {
+    if (this.timeoutTimer) clearTimeout(this.timeoutTimer);
+    this.timeoutTimer = undefined;
   }
 
   private trySend(event: WireEvent): void {

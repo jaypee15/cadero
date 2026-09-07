@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WireEvent } from "@cadence/protocol";
 import { AgentSession } from "../src/session.js";
 
@@ -280,4 +280,71 @@ describe("AgentSession", () => {
     expect(chunks).not.toContain("APPROVED-MARKER");
     session.stop();
   });
+
+  it("denies and tears down when the intercept times out", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    const agent = stubAgent(
+      dir,
+      'printf "rm -rf ./dist\\nDo you want to proceed? [y/N]"; sleep 5; printf " never"',
+    );
+    const socket = new FakeSocket();
+    (socket as { close?: () => void }).close = vi.fn();
+    const session = new AgentSession({
+      agent: "claude",
+      command: "bash",
+      args: [agent],
+      cwd: dir,
+      socket: socket as never,
+      sessionId: "sess_1",
+      config: { safeCommands: [] },
+      interceptTimeoutMs: 150,
+    });
+    session.start();
+    await socket.all(1); // INTERCEPT_REQUIRED emitted
+    const intercept = socket.sent.find((e) => e.event === "INTERCEPT_REQUIRED");
+    expect(intercept).toBeDefined();
+    // within 2s the timeout fires: notice frame, escape written, socket closed
+    await socket.until((sent) =>
+      sent.some((e) => (e.payload as { chunk?: string }).chunk?.includes("timed out")),
+    );
+    const notice = socket.sent.find(
+      (e) =>
+        e.event === "TERMINAL_DATA" &&
+        (e.payload as { chunk?: string }).chunk?.includes("timed out"),
+    );
+    expect(notice).toBeDefined();
+    expect(notice!.event).toBe("TERMINAL_DATA");
+    expect((notice!.payload as { chunk: string }).chunk).toContain("intercept timed out");
+    expect((socket as unknown as { close: ReturnType<typeof vi.fn> }).close).toHaveBeenCalled();
+    session.stop();
+  }, 10000);
+
+  it("does not time out an intercept that is resolved in time", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    const agent = stubAgent(
+      dir,
+      'printf "rm -rf ./dist\\nDo you want to proceed? [y/N]"; read -n 1; printf " continued"',
+    );
+    const socket = new FakeSocket();
+    const session = new AgentSession({
+      agent: "claude",
+      command: "bash",
+      args: [agent],
+      cwd: dir,
+      socket: socket as never,
+      sessionId: "sess_1",
+      config: { safeCommands: [] },
+      interceptTimeoutMs: 5000,
+    });
+    session.start();
+    await socket.all(1);
+    socket.handler!({
+      event: "RESOLVE_INTERCEPT",
+      meta: { session_id: "sess_1" },
+      payload: { decision: "APPROVE", input_payload: null },
+    } as WireEvent);
+    await socket.all(3);
+    expect(socket.sent.some((e) => (e.payload as { chunk?: string }).chunk?.includes("timed out"))).toBe(false);
+    session.stop();
+  }, 10000);
 });

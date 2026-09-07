@@ -5,7 +5,7 @@ import { loadCredentials, saveCredentials, CADENCE_DIR_DEFAULT } from "./credent
 import { pollForAccessToken, requestDeviceCode } from "./ghDevice.js";
 import { pairSession } from "./pairing.js";
 import { CadenceSocket } from "./socket.js";
-import { AgentSession } from "./session.js";
+import { AgentSession, INTERCEPT_TIMEOUT_MS } from "./session.js";
 import { loadConfig } from "./config.js";
 import type { AgentName } from "./intercept.js";
 
@@ -118,6 +118,16 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
     await socket.connect();
 
     const config = await loadConfig(cwd);
+    const interceptTimeoutRaw = env.CADENCE_INTERCEPT_TIMEOUT_MS;
+    if (interceptTimeoutRaw !== undefined) {
+      const parsed = Number(interceptTimeoutRaw);
+      if (!Number.isInteger(parsed) || parsed <= 0) {
+        err("CADENCE_INTERCEPT_TIMEOUT_MS must be a positive integer (milliseconds)");
+        return 1;
+      }
+    }
+    const interceptTimeoutMs =
+      interceptTimeoutRaw !== undefined ? Number(interceptTimeoutRaw) : INTERCEPT_TIMEOUT_MS;
     const session = new AgentSession({
       agent,
       command: agent,
@@ -125,6 +135,7 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
       socket,
       sessionId,
       config,
+      interceptTimeoutMs,
       onError: (message) => err(message),
     });
     session.start();
