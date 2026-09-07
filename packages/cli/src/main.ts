@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { pathToFileURL } from "node:url";
+import { realpathSync } from "node:fs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadCredentials, saveCredentials, CADENCE_DIR_DEFAULT } from "./credentials.js";
 import { pollForAccessToken, requestDeviceCode } from "./ghDevice.js";
 import { pairSession } from "./pairing.js";
@@ -129,7 +130,20 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
   return 1;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+function isDirectInvocation(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    // npm bin symlinks: Node realpaths the module, so argv[1] must be
+    // real pathed too before the comparison.
+    return realpathSync(entry) === fileURLToPath(import.meta.url);
+  } catch {
+    // argv[1] disappeared or is unresolvable: fall back to the URL comparison
+    return import.meta.url === pathToFileURL(entry).href;
+  }
+}
+
+if (isDirectInvocation()) {
   runCli(process.argv.slice(2)).then(
     (code) => {
       if (code !== 0) process.exit(code);
