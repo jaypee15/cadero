@@ -182,7 +182,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       const value = payload as string;
       throw new Error(
         `captured pairing payload does not parse (${err instanceof Error ? err.message : String(err)}); ` +
-          `len=${value.length}, head=${JSON.stringify(value.slice(0, 32))}, tail=${JSON.stringify(value.slice(-32))}`,
+          `len=${value.length}, head=${JSON.stringify(redact(value.slice(0, 32)))}, tail=${JSON.stringify(redact(value.slice(-32)))}`,
       );
     }
     await until(
