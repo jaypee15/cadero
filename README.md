@@ -51,7 +51,7 @@ controls for every action the agent wants to take.
 ```
 npm install
 npm run build && npm test && npm run typecheck
-npm run e2e --workspace=@cadence/mobile   # full-loop browser test
+npm run e2e   # full-loop browser test (from packages/e2e; see that package for prerequisites)
 ```
 
 ## License

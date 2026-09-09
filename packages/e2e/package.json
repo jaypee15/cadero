@@ -1,0 +1,19 @@
+{
+  "name": "@cadence/e2e",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@cadence/protocol": "0.1.0",
+    "@cadence/relay": "0.1.0",
+    "ioredis": "^5.4.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^20.0.0",
+    "node-pty": "^1.0.0"
+  }
+}

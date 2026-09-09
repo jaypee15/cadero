@@ -27,10 +27,10 @@ const PAYLOAD_PATTERN = /cadence:\/\/pair\?v=1&\S+/;
 const SETUP_DEADLINE_MS = 30000;
 
 const here = dirname(fileURLToPath(import.meta.url));
-const mobileRoot = join(here, "..", "..");
-const repoRoot = join(mobileRoot, "..", "..");
+const e2eRoot = join(here, "..");
+const repoRoot = join(e2eRoot, "..", "..");
 const cliMain = join(repoRoot, "packages", "cli", "dist", "main.js");
-const staticRoot = join(mobileRoot, "out");
+const staticRoot = join(repoRoot, "packages", "mobile", "out");
 
 // Tokens and payloads (which embed the session key) must never leak into logs.
 function redact(text: string): string {
