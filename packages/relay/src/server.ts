@@ -32,6 +32,10 @@ export function createServer(options: ServerOptions): FastifyInstance {
     // so unauthenticated callers learn nothing beyond up or down.
   });
 
+  // Warm the connection eagerly so the first /health check reports truthfully
+  // instead of "down" while lazyConnect's first ping is still dialing.
+  void redis.connect().catch(() => {});
+
   const defaultVerify = options.verifyUser ? null : createVerifyUser(options.redisUrl);
   const verifyUser = options.verifyUser ?? defaultVerify!;
 
@@ -41,6 +45,17 @@ export function createServer(options: ServerOptions): FastifyInstance {
   });
 
   app.get("/health", async () => {
+    // Give an in-flight warm-up a bounded chance to finish (and retry the
+    // dial if it already failed) before declaring Redis down.
+    const deadline = Date.now() + 1500;
+    while ((redis.status as string) !== "ready" && Date.now() < deadline) {
+      if (redis.status === "wait" || redis.status === "end") {
+        await redis.connect().catch(() => {});
+      }
+      if ((redis.status as string) !== "ready") {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
     try {
       await redis.ping();
       return { status: "ok", redis: "up" as const };

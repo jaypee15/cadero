@@ -9,4 +9,12 @@ describe("createServer", () => {
     expect(res.json()).toEqual({ status: "ok", redis: "down" });
     await app.close();
   });
+
+  it("reports redis up from the first health check after construction", async () => {
+    const app = createServer({ redisUrl: "redis://127.0.0.1:6379" });
+    const res = await app.inject({ method: "GET", url: "/health" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ status: "ok", redis: "up" });
+    await app.close();
+  });
 });
