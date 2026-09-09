@@ -19,7 +19,8 @@ controls for every action the agent wants to take.
 ## Quickstart (self-host)
 
 1. `docker compose up -d` — starts Redis, the relay, and the PWA (port 8080).
-2. Set the OAuth env vars for the relay (see Configuration) and restart it.
+2. Register the two GitHub OAuth apps and set the env vars (see
+   [docs/setup-oauth.md](docs/setup-oauth.md) for the walkthrough), then restart.
 3. On your dev machine, install the CLI from source (not yet published to npm):
    ```
    git clone https://github.com/jaypee15/cadence.git
