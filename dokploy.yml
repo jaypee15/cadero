@@ -1,0 +1,56 @@
+# Dokploy deployment: the whole Cadero stack as one Docker Compose service.
+#
+# In the Dokploy UI create a "Docker Compose" service pointing at this file
+# (Compose Path: dokploy.yml) and set the OAuth quartet in the service's
+# Environment tab. Traefik (installed by Dokploy) terminates TLS and routes
+# cadero.dev to the web container; nginx stays plain HTTP behind it.
+#
+# Full walkthrough: docs/deploy-contabo.md
+name: cadero
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  relay:
+    build:
+      context: .
+      dockerfile: packages/relay/Dockerfile
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+      PORT: "8787"
+      GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID:-}
+      GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
+      CADERO_RELAY_PUBLIC_URL: ${CADERO_RELAY_PUBLIC_URL:-}
+      CADERO_APP_URL: ${CADERO_APP_URL:-}
+    depends_on:
+      - redis
+
+  web:
+    build:
+      context: .
+      dockerfile: packages/mobile/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - relay
+    networks:
+      - default
+      - dokploy-network
+    labels:
+      - traefik.enable=true
+      # cadero.dev -> web:80 (nginx), TLS via Dokploy's Let's Encrypt resolver
+      - traefik.http.routers.cadero.rule=Host(`cadero.dev`)
+      - traefik.http.routers.cadero.entrypoints=websecure
+      - traefik.http.routers.cadero.tls.certresolver=letsencrypt
+      - traefik.http.services.cadero.loadbalancer.server.port=80
+      # http://cadero.dev -> https://cadero.dev
+      - traefik.http.routers.cadero-http.rule=Host(`cadero.dev`)
+      - traefik.http.routers.cadero-http.entrypoints=web
+      - traefik.http.routers.cadero-http.middlewares=cadero-redirect
+      - traefik.http.middlewares.cadero-redirect.redirectscheme.scheme=https
+
+networks:
+  dokploy-network:
+    external: true

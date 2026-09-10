@@ -26,9 +26,6 @@ services:
       dockerfile: packages/mobile/Dockerfile
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./certs:/etc/nginx/certs:ro
+      - "8080:80"
     depends_on:
       - relay
