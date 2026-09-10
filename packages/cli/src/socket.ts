@@ -5,7 +5,7 @@ import {
   EnvelopeError,
   type EncryptedEnvelope,
   type WireEvent,
-} from "@cadence/protocol";
+} from "@cadero/protocol";
 
 const BASE_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 30000;
@@ -13,7 +13,7 @@ const MAX_BACKOFF_MS = 30000;
 export const HEARTBEAT_INTERVAL_MS = 20000;
 export const STALE_AFTER_MS = 45000;
 
-export interface CadenceSocketOptions {
+export interface CaderoSocketOptions {
   relayUrl: string;
   roomId: string;
   token: string;
@@ -23,8 +23,8 @@ export interface CadenceSocketOptions {
   onFatal?: (error: EnvelopeError) => void;
 }
 
-export class CadenceSocket {
-  private readonly opts: CadenceSocketOptions;
+export class CaderoSocket {
+  private readonly opts: CaderoSocketOptions;
   private ws: WebSocket | undefined;
   private backoffMs = BASE_BACKOFF_MS;
   private closedByUser = false;
@@ -35,7 +35,7 @@ export class CadenceSocket {
   private staleTimer: ReturnType<typeof setInterval> | undefined;
   private lastReceivedAt = Date.now();
 
-  constructor(opts: CadenceSocketOptions) {
+  constructor(opts: CaderoSocketOptions) {
     this.opts = opts;
   }
 

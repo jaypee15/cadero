@@ -14,8 +14,8 @@ import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 import { createRequire } from "node:module";
 import { Redis } from "ioredis";
-import { parsePairingPayload } from "@cadence/protocol";
-import { runMain } from "@cadence/relay/main.js";
+import { parsePairingPayload } from "@cadero/protocol";
+import { runMain } from "@cadero/relay/main.js";
 
 const require = createRequire(import.meta.url);
 const pty = require("node-pty") as typeof import("node-pty");
@@ -23,7 +23,7 @@ const pty = require("node-pty") as typeof import("node-pty");
 const STATIC_PORT = 4173;
 const RELAY_PORT = 8790;
 const RELAY_URL = `http://127.0.0.1:${RELAY_PORT}`;
-const PAYLOAD_PATTERN = /cadence:\/\/pair\?v=1&\S+/;
+const PAYLOAD_PATTERN = /cadero:\/\/pair\?v=1&\S+/;
 const SETUP_DEADLINE_MS = 30000;
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -36,7 +36,7 @@ const staticRoot = join(repoRoot, "packages", "mobile", "out");
 function redact(text: string): string {
   return text
     .replace(/key=[A-Za-z0-9_-]+/g, "key=<redacted>")
-    .replace(/cadence_[A-Za-z0-9]{32}/g, "cadence_<redacted>");
+    .replace(/cadero_[A-Za-z0-9]{32}/g, "cadero_<redacted>");
 }
 
 // Async poll with a deadline; must yield to the event loop so the PTY
@@ -69,21 +69,21 @@ done
 
 export default async function globalSetup(): Promise<() => Promise<void>> {
   if (!existsSync(cliMain)) {
-    throw new Error("packages/cli/dist/main.js missing; build @cadence/cli first");
+    throw new Error("packages/cli/dist/main.js missing; build @cadero/cli first");
   }
   if (!existsSync(join(staticRoot, "index.html"))) {
-    throw new Error("packages/mobile/out/index.html missing; build @cadence/mobile first");
+    throw new Error("packages/mobile/out/index.html missing; build @cadero/mobile first");
   }
 
-  const token = `cadence_${randomBytes(16).toString("hex")}`;
-  const tempBase = mkdtempSync(join(tmpdir(), "cadence-e2e-"));
+  const token = `cadero_${randomBytes(16).toString("hex")}`;
+  const tempBase = mkdtempSync(join(tmpdir(), "cadero-e2e-"));
   const homeDir = join(tempBase, "home");
   const projectDir = join(tempBase, "project");
   const stubDir = join(tempBase, "bin");
-  mkdirSync(join(homeDir, ".cadence"), { recursive: true });
+  mkdirSync(join(homeDir, ".cadero"), { recursive: true });
   mkdirSync(projectDir, { recursive: true });
   mkdirSync(stubDir, { recursive: true });
-  writeFileSync(join(homeDir, ".cadence", "credentials.json"), JSON.stringify({ githubToken: token }));
+  writeFileSync(join(homeDir, ".cadero", "credentials.json"), JSON.stringify({ githubToken: token }));
   writeFileSync(join(stubDir, "claude"), STUB_CLAUDE, { mode: 0o755 });
 
   const redis = new Redis("redis://127.0.0.1:6379", { maxRetriesPerRequest: 3 });
@@ -102,7 +102,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
 
   const teardown = async (): Promise<void> => {
     cliPty?.kill();
-    if (process.env.CADENCE_E2E_DEBUG) {
+    if (process.env.CADERO_E2E_DEBUG) {
       console.log(`--- CLI PTY stream (redacted) ---\n${redact(cliLogBuffer.join(""))}`);
     }
     try {
@@ -112,7 +112,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     }
     staticServer.kill("SIGTERM");
     try {
-      await redis.del(`cadence:session:${token}`);
+      await redis.del(`cadero:session:${token}`);
     } catch {
       /* best effort */
     }
@@ -123,7 +123,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   try {
     app = (await runMain({ env: { REDIS_URL: "redis://127.0.0.1:6379", PORT: String(RELAY_PORT) } })).app;
 
-    await redis.set(`cadence:session:${token}`, "e2e-user", "EX", 3600);
+    await redis.set(`cadero:session:${token}`, "e2e-user", "EX", 3600);
 
     await new Promise<void>((resolve, reject) => {
       const end = Date.now() + SETUP_DEADLINE_MS;
@@ -147,7 +147,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
         ...process.env,
         HOME: homeDir,
         PATH: `${stubDir}:${process.env.PATH ?? ""}`,
-        CADENCE_GITHUB_CLIENT_ID: "unused",
+        CADERO_GITHUB_CLIENT_ID: "unused",
       } as { [key: string]: string },
     });
     let payload: string | undefined;
@@ -198,12 +198,12 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       () => cliLogBuffer.join(""),
     );
 
-    if (process.env.CADENCE_E2E_DEBUG) {
+    if (process.env.CADERO_E2E_DEBUG) {
       console.log(`--- CLI PTY stream (redacted) ---\n${redact(cliLogBuffer.join(""))}`);
     }
 
-    process.env.CADENCE_E2E_TOKEN = token;
-    process.env.CADENCE_E2E_PAYLOAD = payload as string;
+    process.env.CADERO_E2E_TOKEN = token;
+    process.env.CADERO_E2E_PAYLOAD = payload as string;
 
     return teardown;
   } catch (err) {

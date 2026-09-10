@@ -41,9 +41,9 @@ describe("createPtySession", () => {
       cwd: process.cwd(),
     });
     await new Promise((r) => setTimeout(r, 300));
-    session.write("from-cadence\r");
-    const buffer = await untilContains(session, "got:from-cadence");
-    expect(buffer).toContain("got:from-cadence");
+    session.write("from-cadero\r");
+    const buffer = await untilContains(session, "got:from-cadero");
+    expect(buffer).toContain("got:from-cadero");
     session.kill();
   });
 

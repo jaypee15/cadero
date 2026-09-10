@@ -1,5 +1,5 @@
 {
-  "name": "@cadence/protocol",
+  "name": "@cadero/protocol",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",

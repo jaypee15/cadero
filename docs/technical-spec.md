@@ -1,7 +1,7 @@
-## Technical Specification: Cadence
+## Technical Specification: Cadero
 Status: Approved | Reference Architecture: v1.0.0 | Compiler Target: Node 20+
 ------------------------------
-## 1. Local Daemon (@cadence/cli)
+## 1. Local Daemon (@cadero/cli)
 The local daemon is a Node.js-based Command Line Interface distributed via npm. It acts as an orchestrator, spawning pseudoterminals (PTYs), managing state locally, and holding outbound socket connections.
 ## 1.1 Process Management & Shell Emulation
 To run fully interactive tools like Claude Code and OpenCode without clipping styling, character codes, or tab completions, the daemon uses native bindings instead of simple child_process.spawn.
@@ -18,7 +18,7 @@ const shell = process.platform === 'win32' ? 'powershell.exe' : 'bash';const pty
   env: {
     ...process.env,
     FORCE_COLOR: '3', // Forces 256-color support down downstream CLIs
-    CADENCE_ACTIVE: 'true'
+    CADERO_ACTIVE: 'true'
   }
 });
 
@@ -47,10 +47,10 @@ The CLI acts as a pass-through layer, analyzing chunks of data from stdout for k
 * Intercept Rule Definitions:
 * Claude Code Intercept: Catches sequence patterns resembling confirmation text or key blocks requiring manual overrides (e.g., Execute tool? [y/N], Press Enter to continue).
    * OpenCode Intercept: Catches continuous processing cycles matching waiting parameters.
-* Safe-Command Verification: A local validation matrix matches incoming calls with entries in .cadencerc. If a tool triggers a system command mapped inside the user's local configuration file, the engine skips mobile confirmation entirely and safely triggers ptyProcess.write('y\n').
+* Safe-Command Verification: A local validation matrix matches incoming calls with entries in .caderorc. If a tool triggers a system command mapped inside the user's local configuration file, the engine skips mobile confirmation entirely and safely triggers ptyProcess.write('y\n').
 
 ------------------------------
-## 2. Cloud Relay Layer (@cadence/relay)
+## 2. Cloud Relay Layer (@cadero/relay)
 The Cloud Relay is designed for low latency, memory caching, and zero tracking data collection. It routes frames between client pairs while handling sudden connections/disconnections safely.
 ## 2.1 Technology & Framework Choice
 
@@ -94,7 +94,7 @@ The Cloud Relay tracks rooms entirely in RAM using Redis. When a user requests a
 }
 
 ------------------------------
-## 3. Mobile Web App (@cadence/mobile)
+## 3. Mobile Web App (@cadero/mobile)
 The front-end client acts as a fast PWA using modern, framework-independent visual rendering utilities.
 ## 3.1 Stack Elements
 
@@ -122,7 +122,7 @@ socket.onmessage = (event) => {
 
 ------------------------------
 ## 4. End-to-End Cryptographic Handshake
-To ensure absolute privacy even if the cloud relay infrastructure is compromised, Cadence uses an end-to-end (E2E) cryptographic layer.
+To ensure absolute privacy even if the cloud relay infrastructure is compromised, Cadero uses an end-to-end (E2E) cryptographic layer.
 
 [Local Desktop CLI]               [Cloud Relay]               [Mobile Client Browser]
          │                               │                               │
@@ -142,7 +142,7 @@ To ensure absolute privacy even if the cloud relay infrastructure is compromised
          │                               │                               │    In-Memory Key
 
 
-   1. Local Key Generation: When npx cadence-cli runs, it generates a cryptographically secure, single-session AES-GCM 256-bit symmetric key in memory.
+   1. Local Key Generation: When npx cadero-cli runs, it generates a cryptographically secure, single-session AES-GCM 256-bit symmetric key in memory.
    2. QR Compilation: The generated symmetric key and target room_id are combined into a URL string encoded within a terminal-rendered QR code. This key never leaves the terminal.
    3. Session Handshake: Scanning the QR code passes the secret key directly into the mobile browser's local memory (window.crypto.subtle).
    4. Zero-Knowledge Transport: The local daemon encrypts payloads before transmission. The cloud relay reads only the routing header (room_id), while the encrypted block travels completely unreadable until it reaches the mobile client.

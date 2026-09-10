@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-export const CADENCE_DIR_DEFAULT = join(homedir(), ".cadence");
+export const CADERO_DIR_DEFAULT = join(homedir(), ".cadero");
 
 export interface Credentials {
   githubToken: string;

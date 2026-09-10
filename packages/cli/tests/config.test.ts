@@ -11,29 +11,29 @@ afterEach(() => {
 });
 
 describe("loadConfig", () => {
-  it("returns empty safelist when .cadencerc is absent", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-cfg-"));
+  it("returns empty safelist when .caderorc is absent", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadero-cfg-"));
     expect(await loadConfig(dir)).toEqual({ safeCommands: [] });
   });
 
-  it("loads safeCommands from .cadencerc", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-cfg-"));
+  it("loads safeCommands from .caderorc", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadero-cfg-"));
     writeFileSync(
-      join(dir, ".cadencerc"),
+      join(dir, ".caderorc"),
       JSON.stringify({ safeCommands: ["npm test", "git status"] }),
     );
     expect(await loadConfig(dir)).toEqual({ safeCommands: ["npm test", "git status"] });
   });
 
-  it("fails loudly on malformed .cadencerc", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-cfg-"));
-    writeFileSync(join(dir, ".cadencerc"), "{ not json");
-    await expect(loadConfig(dir)).rejects.toThrow(".cadencerc is not valid");
+  it("fails loudly on malformed .caderorc", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadero-cfg-"));
+    writeFileSync(join(dir, ".caderorc"), "{ not json");
+    await expect(loadConfig(dir)).rejects.toThrow(".caderorc is not valid");
   });
 
   it("fails loudly when safeCommands is not a string array", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-cfg-"));
-    writeFileSync(join(dir, ".cadencerc"), JSON.stringify({ safeCommands: "npm test" }));
-    await expect(loadConfig(dir)).rejects.toThrow(".cadencerc is not valid");
+    dir = mkdtempSync(join(tmpdir(), "cadero-cfg-"));
+    writeFileSync(join(dir, ".caderorc"), JSON.stringify({ safeCommands: "npm test" }));
+    await expect(loadConfig(dir)).rejects.toThrow(".caderorc is not valid");
   });
 });

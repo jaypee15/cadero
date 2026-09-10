@@ -1,8 +1,8 @@
-// packages/mobile/src/app/CadenceApp.tsx
+// packages/mobile/src/app/CaderoApp.tsx
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { importSessionKey, parsePairingPayload } from "@cadence/protocol";
+import { importSessionKey, parsePairingPayload } from "@cadero/protocol";
 import {
   GAP_MARKER,
   initialSessionState,
@@ -19,7 +19,7 @@ import { PromptInput } from "../components/PromptInput";
 import { GapBanner } from "../components/GapBanner";
 import { readOAuthTokenFromHash, loginUrl } from "./oauth";
 
-export function CadenceApp() {
+export function CaderoApp() {
   const [state, dispatch] = useReducer(reduceSession, initialSessionState);
   const [error, setError] = useState<string | null>(null);
   const [resolving, setResolving] = useState(false);

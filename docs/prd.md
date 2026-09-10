@@ -1,11 +1,11 @@
-## Product Requirement Document (PRD)## Project: Cadence
+## Product Requirement Document (PRD)## Project: Cadero
 Status: Draft | Author: AI Collaborator | Target Launch: Q4 2026
 ------------------------------
 ## 1. Executive Summary & Value Proposition
-Cadence is an open-source, self-hostable meta-harness and remote orchestrator for local AI coding agents (such as Claude Code and OpenCode). It bridges the gap between terminal-bound local AI power and mobile convenience, allowing software engineers to monitor, prompt, and approve agent actions on their local development machines from a secure mobile web interface while away from their desks.
+Cadero is an open-source, self-hostable meta-harness and remote orchestrator for local AI coding agents (such as Claude Code and OpenCode). It bridges the gap between terminal-bound local AI power and mobile convenience, allowing software engineers to monitor, prompt, and approve agent actions on their local development machines from a secure mobile web interface while away from their desks.
 ## Core Philosophy
 
-* Zero-Knowledge Cloud: No user code, repository files, or AI API keys ever touch or reside on Cadence cloud servers.
+* Zero-Knowledge Cloud: No user code, repository files, or AI API keys ever touch or reside on Cadero cloud servers.
 * Local Final Veto: The local terminal daemon always maintains absolute command execution authority over incoming mobile requests.
 * Effortless Deployment: Up and running via a single CLI command on the desktop and a responsive web client for mobile.
 
@@ -14,7 +14,7 @@ Cadence is an open-source, self-hostable meta-harness and remote orchestrator fo
 The system relies on a three-tier architecture to securely bridge local execution with remote control without requiring complex network configuration.
 
 ┌─────────────────────────┐       ┌────────────────────────┐       ┌────────────────────────┐
-│      Cadence CLI        │       │  Cadence Cloud Relay   │       │   Cadence Mobile App   │
+│      Cadero CLI        │       │  Cadero Cloud Relay   │       │   Cadero Mobile App   │
 │   (User's Local PC)     │       │     (Multi-Tenant)     │       │    (Responsive PWA)    │
 ├─────────────────────────┤       ├────────────────────────┤       ├────────────────────────┤
 │ • Local Node-PTY        │ ◄───► │ • Room-based Router    │ ◄───► │ • xterm.js Streamer    │
@@ -23,22 +23,22 @@ The system relies on a three-tier architecture to securely bridge local executio
 └─────────────────────────┘       └────────────────────────┘       └────────────────────────┘
 
 ------------------------------
-## 3. Detailed Feature Requirements## 3.1 Cadence CLI (Local Desktop Daemon)
+## 3. Detailed Feature Requirements## 3.1 Cadero CLI (Local Desktop Daemon)
 The local component runs inside the user's terminal, interfacing with the local codebase and AI tool configurations.
 
 * Outbound WebSocket Client: Initiates an encrypted outbound connection (wss://) to the Cloud Relay. This eliminates the need for users to configure home router port forwarding or firewalls.
 * Dynamic Process Management (node-pty): Spawns terminal processes for native agents (claude, opencode) via pseudo-terminals to preserve text formatting and interactive workflows.
 * Local Intercept Engine: Parses incoming tool streams. When an agent requests a confirmation (e.g., Execute command? (y/n)), the CLI pauses the stream and dispatches a standard schema structured event to the cloud room.
-* Command Safelist Config: Reads a local .cadencerc configuration file allowing users to define safe commands (e.g., npm test, git status) that can bypass explicit mobile confirmation.
+* Command Safelist Config: Reads a local .caderorc configuration file allowing users to define safe commands (e.g., npm test, git status) that can bypass explicit mobile confirmation.
 
-## 3.2 Cadence Cloud Relay (The Router)
+## 3.2 Cadero Cloud Relay (The Router)
 A thin orchestration layer designed for multi-tenancy and data isolation.
 
 * GitHub OAuth Authentication: Authenticates users and generates unique, transient pairing channels.
 * Isolated Multi-Tenant Session Rooms: Utilizes a Redis-backed Pub/Sub architecture to ensure data from User_A_Mobile can exclusively pass to User_A_Desktop.
 * Zero-Retention Pipeline: The relay behaves as a network pipe. Messages are streamed linearly and never persisted to a database disk, ensuring zero log footprint.
 
-## 3.3 Cadence Mobile Interface (Responsive Web Portal / PWA)
+## 3.3 Cadero Mobile Interface (Responsive Web Portal / PWA)
 A mobile-optimized web application structured for real-time visibility.
 
 * Real-time Terminal Stream: Renders agent progress dynamically using an active terminal canvas component (xterm.js).
@@ -52,7 +52,7 @@ Security is the primary barrier to user adoption for this project. The following
 | Scenario | Risk | Mitigation Strategy |
 |---|---|---|
 | Relay Compromise | Malicious actor breaks into the central cloud relay server. | Intent Isolation: The mobile client cannot emit raw Bash commands. It only triggers abstract high-level intents. The local daemon validates all strings against an internal strict parsing engine before appending them to the engine subshell. |
-| API Key Leakage | Exposure of high-cost Anthropic or OpenAI API keys. | Local-Only Secret Storage: Cadence servers do not collect or request user credentials. The CLI relies natively on pre-authenticated active environment keys or machine sessions established via claude auth login. |
+| API Key Leakage | Exposure of high-cost Anthropic or OpenAI API keys. | Local-Only Secret Storage: Cadero servers do not collect or request user credentials. The CLI relies natively on pre-authenticated active environment keys or machine sessions established via claude auth login. |
 | Man-In-The-Middle | Network interception of source code strings. | Forced Transport Encryption: Strict enforcement of TLS/HTTPS protocols (wss://). The architecture supports complete end-to-end payload encryption keys generated locally during terminal pairing. |
 
 ------------------------------
@@ -84,12 +84,12 @@ To drive organic open-source adoption, the onboarding path is split into two str
 For security teams or enthusiasts who refuse to connect to a third-party relay:
 
 * Provide a clean docker-compose.yml that stands up the Web UI, Node WebSocket server, and a local Redis container in one click.
-* Custom environment configuration handles alternative root domains: CADENCE_RELAY_URL=https://my-private-server.com.
+* Custom environment configuration handles alternative root domains: CADERO_RELAY_URL=https://my-private-server.com.
 
-## Cadence Public Multi-Tenant Cloud
+## Cadero Public Multi-Tenant Cloud
 For developers who want an immediate, turn-key configuration setup:
 
-   1. Run npx cadence-cli login on their development machine (authenticates with Github and configures the environment).
+   1. Run npx cadero-cli login on their development machine (authenticates with Github and configures the environment).
    2. Scan the generated terminal QR code with a smartphone to link securely to the running session room.
 
 

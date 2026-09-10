@@ -2,17 +2,17 @@
 import { randomBytes } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { loadCredentials, saveCredentials, CADENCE_DIR_DEFAULT } from "./credentials.js";
+import { loadCredentials, saveCredentials, CADERO_DIR_DEFAULT } from "./credentials.js";
 import { pollForAccessToken, requestDeviceCode } from "./ghDevice.js";
 import { pairSession } from "./pairing.js";
-import { CadenceSocket } from "./socket.js";
+import { CaderoSocket } from "./socket.js";
 import { AgentSession, INTERCEPT_TIMEOUT_MS } from "./session.js";
 import { loadConfig } from "./config.js";
 import type { AgentName } from "./intercept.js";
 
 export interface RunOptions {
   env?: NodeJS.ProcessEnv;
-  cadenceDir?: string;
+  caderoDir?: string;
   cwd?: string;
   fetchImpl?: typeof fetch;
   stdout?: (line: string) => void;
@@ -21,21 +21,21 @@ export interface RunOptions {
   isTTY?: boolean;
 }
 
-const USAGE = `cadence-cli — control local AI agents from your phone
+const USAGE = `cadero-cli — control local AI agents from your phone
 
 Usage:
-  cadence-cli login                          Authenticate with GitHub
-  cadence-cli start [options]                Pair a session and start the agent
+  cadero-cli login                          Authenticate with GitHub
+  cadero-cli start [options]                Pair a session and start the agent
     --agent <claude|opencode>                Agent binary to spawn (default: claude)
-    --relay-url <url>                        Relay base URL (or set CADENCE_RELAY_URL)
-  cadence-cli --help                         Show this help
+    --relay-url <url>                        Relay base URL (or set CADERO_RELAY_URL)
+  cadero-cli --help                         Show this help
 `;
 
 export async function runCli(argv: string[], opts: RunOptions = {}): Promise<number> {
   const out = opts.stdout ?? ((line: string) => console.log(line));
   const err = opts.stderr ?? ((line: string) => console.error(line));
   const env = opts.env ?? process.env;
-  const cadenceDir = opts.cadenceDir ?? CADENCE_DIR_DEFAULT;
+  const caderoDir = opts.caderoDir ?? CADERO_DIR_DEFAULT;
   const cwd = opts.cwd ?? process.cwd();
   const fetchImpl = opts.fetchImpl ?? fetch;
 
@@ -46,9 +46,9 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
   }
 
   if (command === "login") {
-    const clientId = env.CADENCE_GITHUB_CLIENT_ID;
+    const clientId = env.CADERO_GITHUB_CLIENT_ID;
     if (!clientId) {
-      err("CADENCE_GITHUB_CLIENT_ID is not set; register a GitHub OAuth app and set it to enable login");
+      err("CADERO_GITHUB_CLIENT_ID is not set; register a GitHub OAuth app and set it to enable login");
       return 1;
     }
     const device = await requestDeviceCode(fetchImpl, clientId);
@@ -62,14 +62,14 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
       },
       clientId,
     );
-    await saveCredentials(cadenceDir, { githubToken: token });
-    out(`logged in; credentials saved to ${cadenceDir}/credentials.json`);
+    await saveCredentials(caderoDir, { githubToken: token });
+    out(`logged in; credentials saved to ${caderoDir}/credentials.json`);
     return 0;
   }
 
   if (command === "start") {
     let agent: AgentName = "claude";
-    let relayUrl = env.CADENCE_RELAY_URL ?? "";
+    let relayUrl = env.CADERO_RELAY_URL ?? "";
     for (let i = 0; i < rest.length; i += 1) {
       if (rest[i] === "--agent") {
         agent = rest[i + 1] as AgentName;
@@ -84,12 +84,12 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
       return 1;
     }
     if (!relayUrl) {
-      err("relay URL required: pass --relay-url or set CADENCE_RELAY_URL");
+      err("relay URL required: pass --relay-url or set CADERO_RELAY_URL");
       return 1;
     }
-    const creds = await loadCredentials(cadenceDir);
+    const creds = await loadCredentials(caderoDir);
     if (!creds) {
-      err("not logged in; run: cadence-cli login");
+      err("not logged in; run: cadero-cli login");
       return 1;
     }
 
@@ -109,7 +109,7 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
     out(`Scan with your phone. Relay: ${relayUrl}  Room: ${roomId}`);
 
     const sessionId = `sess_${randomBytes(8).toString("hex")}`;
-    const socket = new CadenceSocket({
+    const socket = new CaderoSocket({
       relayUrl,
       roomId,
       token: creds.githubToken,
@@ -129,11 +129,11 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
     await socket.connect();
 
     const config = await loadConfig(cwd);
-    const interceptTimeoutRaw = env.CADENCE_INTERCEPT_TIMEOUT_MS;
+    const interceptTimeoutRaw = env.CADERO_INTERCEPT_TIMEOUT_MS;
     if (interceptTimeoutRaw !== undefined) {
       const parsed = Number(interceptTimeoutRaw);
       if (!Number.isInteger(parsed) || parsed <= 0) {
-        err("CADENCE_INTERCEPT_TIMEOUT_MS must be a positive integer (milliseconds)");
+        err("CADERO_INTERCEPT_TIMEOUT_MS must be a positive integer (milliseconds)");
         return 1;
       }
     }

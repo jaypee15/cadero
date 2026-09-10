@@ -1,7 +1,7 @@
-# Cadence
+# Cadero
 
 Control your local AI coding agents (Claude Code, OpenCode) from your phone.
-Cadence runs a daemon next to your agents, routes encrypted frames through a
+Cadero runs a daemon next to your agents, routes encrypted frames through a
 thin relay, and renders the live terminal in a mobile PWA with approve/deny
 controls for every action the agent wants to take.
 
@@ -13,7 +13,7 @@ controls for every action the agent wants to take.
 - Local final veto: the daemon never executes shell commands from the
   network. Your phone sends high-level intents; the daemon validates
   everything and only ever feeds your existing agent's stdin.
-- Optional safelist: `.cadencerc` (`{"safeCommands": ["npm test", ...]}`)
+- Optional safelist: `.caderorc` (`{"safeCommands": ["npm test", ...]}`)
   auto-approves listed commands without bothering your phone.
 
 ## Quickstart (self-host)
@@ -23,28 +23,28 @@ controls for every action the agent wants to take.
    [docs/setup-oauth.md](docs/setup-oauth.md) for the walkthrough), then restart.
 3. On your dev machine, install the CLI from source (not yet published to npm):
    ```
-   git clone https://github.com/jaypee15/cadence.git
-   cd cadence
+   git clone https://github.com/jaypee15/cadero.git
+   cd cadero
    npm install
    npm run build
    npm link ./packages/cli
    ```
-4. `cadence-cli login` (requires `CADENCE_GITHUB_CLIENT_ID` in your env)
-5. `cadence-cli start --relay-url http://your-server:8080`
+4. `cadero-cli login` (requires `CADERO_GITHUB_CLIENT_ID` in your env)
+5. `cadero-cli start --relay-url https://cadero.dev`
 6. Scan the terminal QR with your phone.
 
 ## Configuration
 
 | Variable | Where | Purpose |
 |---|---|---|
-| `CADENCE_GITHUB_CLIENT_ID` | CLI env | GitHub OAuth app client id for `cadence-cli login` |
-| `CADENCE_RELAY_URL` | CLI flag/env | Relay base URL (default: required at start) |
-| `CADENCE_INTERCEPT_TIMEOUT_MS` | CLI env | Intercept timeout override (default 900000 = 15 min) |
+| `CADERO_GITHUB_CLIENT_ID` | CLI env | GitHub OAuth app client id for `cadero-cli login` |
+| `CADERO_RELAY_URL` | CLI flag/env | Relay base URL (default: required at start) |
+| `CADERO_INTERCEPT_TIMEOUT_MS` | CLI env | Intercept timeout override (default 900000 = 15 min) |
 | `REDIS_URL` | relay env | Redis connection string (compose sets it) |
 | `PORT` | relay env | Relay listen port (default 8787) |
 | `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` | relay env | OAuth portal (503 when unset) |
-| `CADENCE_RELAY_PUBLIC_URL` | relay env | Public base URL for OAuth redirects |
-| `CADENCE_APP_URL` | relay env | Where the OAuth callback redirects the browser |
+| `CADERO_RELAY_PUBLIC_URL` | relay env | Public base URL for OAuth redirects |
+| `CADERO_APP_URL` | relay env | Where the OAuth callback redirects the browser |
 
 ## Development
 

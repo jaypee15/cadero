@@ -3,11 +3,11 @@
 
 import dynamic from "next/dynamic";
 
-const CadenceApp = dynamic(() => import("./CadenceApp").then((m) => m.CadenceApp), {
+const CaderoApp = dynamic(() => import("./CaderoApp").then((m) => m.CaderoApp), {
   ssr: false,
   loading: () => <main className="p-6 text-slate-400">Loading…</main>,
 });
 
 export default function Home() {
-  return <CadenceApp />;
+  return <CaderoApp />;
 }

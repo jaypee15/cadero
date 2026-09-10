@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { WireEvent } from "@cadence/protocol";
+import type { WireEvent } from "@cadero/protocol";
 import { AgentSession } from "../src/session.js";
 
 let dir: string | undefined;
@@ -82,7 +82,7 @@ function stubAgent(dir: string, body: string): string {
 
 describe("AgentSession", () => {
   it("forwards ordinary output as TERMINAL_DATA", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-sess-"));
     const agent = stubAgent(dir, 'printf "working..."');
     const socket = new FakeSocket();
     const session = new AgentSession({
@@ -101,7 +101,7 @@ describe("AgentSession", () => {
   });
 
   it("intercepts a confirmation and auto-approves safe commands", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-sess-"));
     const agent = stubAgent(
       dir,
       'printf "npm test\\nDo you want to proceed? [y/N]"; read -n 1; printf " done"',
@@ -128,7 +128,7 @@ describe("AgentSession", () => {
   });
 
   it("raises INTERCEPT_REQUIRED for unsafe commands and resumes on APPROVE", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-sess-"));
     const agent = stubAgent(
       dir,
       'printf "rm -rf ./dist && npm run build\\nDo you want to proceed? [y/N]"; read -n 1; printf " continued"',
@@ -165,7 +165,7 @@ describe("AgentSession", () => {
   });
 
   it("detects a prompt line split across pty chunks", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-sess-"));
     const agent = stubAgent(
       dir,
       'printf "rm -rf ./dist\\nDo you want to "; sleep 0.2; printf "proceed? [y/N]"; read -n 1; printf " resumed"',
@@ -201,7 +201,7 @@ describe("AgentSession", () => {
   });
 
   it("writes EXECUTE_AGENT_PROMPT input into the pty", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-sess-"));
     const agent = stubAgent(dir, 'read line; printf "prompted:%s" "$line"');
     const socket = new FakeSocket();
     const session = new AgentSession({
@@ -229,7 +229,7 @@ describe("AgentSession", () => {
   });
 
   it("drops frames without crashing while the socket is reconnecting", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-sess-"));
     const agent = stubAgent(dir, 'printf "one\\n"; sleep 0.4; printf "two\\n"');
     const socket = new OfflineFirstSocket();
     const errors: string[] = [];
@@ -254,7 +254,7 @@ describe("AgentSession", () => {
   });
 
   it("ignores RESOLVE_INTERCEPT when no intercept is pending", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-sess-"));
     const agent = stubAgent(dir, 'read -n 1; printf "APPROVED-MARKER"');
     const socket = new FakeSocket();
     const session = new AgentSession({
@@ -282,7 +282,7 @@ describe("AgentSession", () => {
   });
 
   it("denies and tears down when the intercept times out", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-sess-"));
     const agent = stubAgent(
       dir,
       'printf "rm -rf ./dist\\nDo you want to proceed? [y/N]"; sleep 5; printf " never"',
@@ -320,7 +320,7 @@ describe("AgentSession", () => {
   }, 10000);
 
   it("does not time out an intercept that is resolved in time", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-sess-"));
     const agent = stubAgent(
       dir,
       'printf "rm -rf ./dist\\nDo you want to proceed? [y/N]"; read -n 1; printf " continued"',

@@ -1,5 +1,5 @@
 import * as jsQRns from "jsqr";
-import { parsePairingPayload, type ParsedPairing } from "@cadence/protocol";
+import { parsePairingPayload, type ParsedPairing } from "@cadero/protocol";
 
 type JsQR = (
   data: Uint8ClampedArray,

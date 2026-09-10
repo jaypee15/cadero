@@ -5,8 +5,8 @@
 // global setup; tests run serially and in order (workers: 1).
 import { expect, test, type Page } from "@playwright/test";
 
-const E2E_TOKEN = process.env.CADENCE_E2E_TOKEN as string;
-const PAYLOAD = process.env.CADENCE_E2E_PAYLOAD as string;
+const E2E_TOKEN = process.env.CADERO_E2E_TOKEN as string;
+const PAYLOAD = process.env.CADERO_E2E_PAYLOAD as string;
 
 async function pair(page: Page): Promise<void> {
   await page.goto(`/?token-not-used#token=${E2E_TOKEN}`);

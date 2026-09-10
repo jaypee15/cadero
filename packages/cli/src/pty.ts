@@ -56,7 +56,7 @@ export function createPtySession(opts: PtyOptions): PtySession {
       env: {
         ...process.env,
         FORCE_COLOR: "3",
-        CADENCE_ACTIVE: "true",
+        CADERO_ACTIVE: "true",
       } as { [key: string]: string },
     });
   } catch {

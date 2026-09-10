@@ -4,7 +4,7 @@ import {
   encryptEnvelope,
   exportSessionKey,
   importSessionKey,
-} from "@cadence/protocol";
+} from "@cadero/protocol";
 import { pairSession, parsePairingPayload } from "../src/pairing.js";
 
 describe("pairSession", () => {
@@ -58,7 +58,7 @@ describe("pairSession", () => {
 describe("parsePairingPayload", () => {
   it("rejects foreign payloads", () => {
     expect(() => parsePairingPayload("https://example.com")).toThrow(
-      "not a cadence pairing payload",
+      "not a cadero pairing payload",
     );
   });
 });

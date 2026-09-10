@@ -1,4 +1,4 @@
-# Cadence Deferred Follow-ups (Backlog)
+# Cadero Deferred Follow-ups (Backlog)
 
 Maintained: 2026-09-08 | Source: Plans 1-4 final-review triage lists and per-task ledgers (see `docs/superpowers/plans/`).
 
@@ -10,14 +10,14 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
 ## Release blockers
 
 - [ ] Register the two GitHub OAuth apps and configure the deployment:
-  - CLI app (device flow, no secret) → `CADENCE_GITHUB_CLIENT_ID` for `cadence-cli login`.
+  - CLI app (device flow, no secret) → `CADERO_GITHUB_CLIENT_ID` for `cadero-cli login`.
   - Relay app (authorization code + client secret) → `GITHUB_OAUTH_CLIENT_ID`,
-    `GITHUB_OAUTH_CLIENT_SECRET`, `CADENCE_RELAY_PUBLIC_URL`, `CADENCE_APP_URL`.
-  - Without these, `cadence-cli login` exits 1 and the relay's OAuth portal
+    `GITHUB_OAUTH_CLIENT_SECRET`, `CADERO_RELAY_PUBLIC_URL`, `CADERO_APP_URL`.
+  - Without these, `cadero-cli login` exits 1 and the relay's OAuth portal
     returns 503 (both by design — fail fast).
-- [ ] Publish `@cadence/cli` to npm. The README quickstart currently documents
+- [ ] Publish `@cadero/cli` to npm. The README quickstart currently documents
   clone + `npm run build` + `npm link ./packages/cli` (verified against a fresh
-  clone); switch it to `npm install -g @cadence/cli` once published. (Plan 4)
+  clone); switch it to `npm install -g @cadero/cli` once published. (Plan 4)
 - [ ] Manual end-to-end pass of the README quickstart on a real phone against
   the compose stack (the one pre-release check flagged as manual-only). (Plan 4)
 
@@ -42,7 +42,7 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
 ## Testing gaps
 
 - [ ] `onFatal` (wrong-key) close-path contract test on the relay socket layer —
-  implemented in both `CadenceSocket` and `MobileSocket` but untested against
+  implemented in both `CaderoSocket` and `MobileSocket` but untested against
   the real relay. (Plan 2/3 tickets; Plan 4 recommendation)
 - [ ] DENY-path keystroke test (`"\u001b"` write resumes/cancels correctly) —
   session-level only, untested at the socket layer. (Plan 2, Task 9 ledger)
@@ -76,7 +76,7 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
   (`lazyConnect` first-ping warm-up in `createServer`, pre-existing Plan 1
   behavior). Add a `connect()` warm-up so health is truthful from the first
   call. (Plan 4, Task 7 report)
-- [ ] Validate `CADENCE_INTERCEPT_TIMEOUT_MS` before pairing/connecting instead
+- [ ] Validate `CADERO_INTERCEPT_TIMEOUT_MS` before pairing/connecting instead
   of after — an invalid value currently wastes a relay connection and a
   pairing payload before exiting 1. (Plan 4, Task 3 ledger)
 
@@ -87,7 +87,7 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
   works and is the tested path). Layout pass: `overflow-hidden` on the
   terminal container or a z-order fix. (Plan 4, Task 8)
 - [ ] Document `--agent <claude|opencode>` in the README config table (currently
-  discoverable via `cadence-cli --help`; defaults to `claude`). (Plan 4, Task 9)
+  discoverable via `cadero-cli --help`; defaults to `claude`). (Plan 4, Task 9)
 
 ## Test hygiene (cosmetic, batch opportunistically)
 
@@ -119,7 +119,7 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
 - 15-minute intercept timeout with deny teardown (Plan 4 Task 3).
 - Heartbeat + staleness detection on both sockets (Plan 4 Tasks 4-5).
 - Gap-recovery semantics + GAP_MARKER rendered into the feed (Plan 4 Tasks 5 + fix wave).
-- `CADENCE_GITHUB_CLIENT_ID` env configuration (Plan 4 Task 6).
+- `CADERO_GITHUB_CLIENT_ID` env configuration (Plan 4 Task 6).
 - OAuth env quartet wiring in `runMain` (Plan 4 Task 7).
 - Full-loop browser E2E incl. prompt-input gating on live phase (Plan 4 Task 8 + fix waves).
 - Fresh-clone quickstart + shebang (Plan 4 fix waves).

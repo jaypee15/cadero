@@ -13,7 +13,7 @@ describe("createRoomStore", () => {
     const roomId = await store.createRoom();
     expect(roomId).toMatch(/^room_[0-9a-f]{16}$/);
     expect(await store.roomExists(roomId)).toBe(true);
-    const ttl = await admin.ttl(`cadence:room:${roomId}`);
+    const ttl = await admin.ttl(`cadero:room:${roomId}`);
     expect(ttl).toBeGreaterThan(14000);
     expect(ttl).toBeLessThanOrEqual(14400);
     store.disconnect();

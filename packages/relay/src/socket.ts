@@ -2,14 +2,14 @@ import type { FastifyInstance } from "fastify";
 import { Redis } from "ioredis";
 import { randomBytes } from "node:crypto";
 import type { RawData } from "ws";
-import { EncryptedEnvelopeSchema } from "@cadence/protocol";
+import { EncryptedEnvelopeSchema } from "@cadero/protocol";
 import { redactForLog } from "./logging.js";
 import { createRoomStore } from "./rooms.js";
 
 export type VerifyUser = (token: string) => Promise<string>;
 
 function framesChannel(roomId: string): string {
-  return `cadence:frames:${roomId}`;
+  return `cadero:frames:${roomId}`;
 }
 
 interface RoomMember {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import type { AddressInfo } from "node:net";
-import { generateSessionKey, encryptEnvelope } from "@cadence/protocol";
+import { generateSessionKey, encryptEnvelope } from "@cadero/protocol";
 import { createServer } from "../src/server.js";
 import { createRoomStore } from "../src/rooms.js";
 

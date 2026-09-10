@@ -5,9 +5,9 @@ import {
   exportSessionKey,
   generateSessionKey,
   importSessionKey,
-} from "@cadence/protocol";
-import { createServer } from "@cadence/relay/server.js";
-import { createRoomStore } from "@cadence/relay/rooms.js";
+} from "@cadero/protocol";
+import { createServer } from "@cadero/relay/server.js";
+import { createRoomStore } from "@cadero/relay/rooms.js";
 import { MobileSocket, HEARTBEAT_INTERVAL_MS, STALE_AFTER_MS } from "../src/realtime/socket.js";
 
 const redisUrl = "redis://127.0.0.1:6379";
@@ -158,7 +158,7 @@ describe("MobileSocket against the real relay", () => {
 });
 
 describe("staleness detection", () => {
-  it("exports the documented heartbeat cadence", () => {
+  it("exports the documented heartbeat cadero", () => {
     expect(HEARTBEAT_INTERVAL_MS).toBe(20000);
     expect(STALE_AFTER_MS).toBe(45000);
   });

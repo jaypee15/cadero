@@ -3,20 +3,20 @@ import {
   exportSessionKey,
   generateSessionKey,
   importSessionKey,
-} from "@cadence/protocol";
-import { createServer } from "@cadence/relay/server.js";
-import { createRoomStore } from "@cadence/relay/rooms.js";
-import { CadenceSocket, HEARTBEAT_INTERVAL_MS, STALE_AFTER_MS } from "../src/socket.js";
+} from "@cadero/protocol";
+import { createServer } from "@cadero/relay/server.js";
+import { createRoomStore } from "@cadero/relay/rooms.js";
+import { CaderoSocket, HEARTBEAT_INTERVAL_MS, STALE_AFTER_MS } from "../src/socket.js";
 
 const redisUrl = "redis://127.0.0.1:6379";
 
-function onceEvent(socket: CadenceSocket): Promise<unknown> {
+function onceEvent(socket: CaderoSocket): Promise<unknown> {
   return new Promise((resolve) => {
     socket.onEvent((event) => resolve(event));
   });
 }
 
-describe("CadenceSocket against the real relay", () => {
+describe("CaderoSocket against the real relay", () => {
   it("sends and receives decrypted wire events and reconnects after drop", async () => {
     const store = createRoomStore(redisUrl);
     const roomId = await store.createRoom();
@@ -28,7 +28,7 @@ describe("CadenceSocket against the real relay", () => {
     const relayUrl = `http://127.0.0.1:${port}`;
 
     const sessionKey = await generateSessionKey();
-    const cli = new CadenceSocket({
+    const cli = new CaderoSocket({
       relayUrl,
       roomId,
       token: "t",
@@ -39,7 +39,7 @@ describe("CadenceSocket against the real relay", () => {
 
     // A peer (the "phone" role) joins with its own import of the same key.
     const rawKey = await importSessionKey(await exportSessionKey(sessionKey));
-    const phone = new CadenceSocket({
+    const phone = new CaderoSocket({
       relayUrl,
       roomId,
       token: "t",
@@ -73,7 +73,7 @@ describe("CadenceSocket against the real relay", () => {
       payload: { decision: "APPROVE", input_payload: null },
     });
 
-    // Reconnect: closing the relay kills sockets; CadenceSocket retries
+    // Reconnect: closing the relay kills sockets; CaderoSocket retries
     // with backoff and rejoins a restarted relay on the same port.
     await app.close();
     const app2 = createServer({ redisUrl, verifyUser: async () => "cli" });
@@ -107,7 +107,7 @@ describe("CadenceSocket against the real relay", () => {
     const relayUrl = `http://127.0.0.1:${port}`;
 
     const sessionKey = await generateSessionKey();
-    const cli = new CadenceSocket({
+    const cli = new CaderoSocket({
       relayUrl,
       roomId,
       token: "t",
@@ -135,7 +135,7 @@ describe("CadenceSocket against the real relay", () => {
       await new Promise((r) => setTimeout(r, 100));
     }
     const back = onceEvent(cli);
-    const phone = new CadenceSocket({
+    const phone = new CaderoSocket({
       relayUrl,
       roomId,
       token: "t",
@@ -162,13 +162,13 @@ describe("CadenceSocket against the real relay", () => {
 });
 
 describe("staleness detection", () => {
-  it("exports the documented heartbeat cadence", () => {
+  it("exports the documented heartbeat cadero", () => {
     expect(HEARTBEAT_INTERVAL_MS).toBe(20000);
     expect(STALE_AFTER_MS).toBe(45000);
   });
 
   function makeTestSocket(): {
-    socket: CadenceSocket;
+    socket: CaderoSocket;
     internals: {
       ws: { readyState: number; close: () => void } | undefined;
       lastReceivedAt: number;
@@ -177,7 +177,7 @@ describe("staleness detection", () => {
     };
     closes: number[];
   } {
-    const socket = new CadenceSocket({
+    const socket = new CaderoSocket({
       relayUrl: "http://127.0.0.1:1",
       roomId: "room_test",
       token: "t",

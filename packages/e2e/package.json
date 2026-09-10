@@ -1,5 +1,5 @@
 {
-  "name": "@cadence/e2e",
+  "name": "@cadero/e2e",
   "version": "0.1.0",
   "type": "module",
   "private": true,
@@ -7,8 +7,8 @@
     "e2e": "playwright test"
   },
   "dependencies": {
-    "@cadence/protocol": "0.1.0",
-    "@cadence/relay": "0.1.0",
+    "@cadero/protocol": "0.1.0",
+    "@cadero/relay": "0.1.0",
     "ioredis": "^5.4.0"
   },
   "devDependencies": {

@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 export const ROOM_TTL_SECONDS = 14400;
 
 function roomKey(roomId: string): string {
-  return `cadence:room:${roomId}`;
+  return `cadero:room:${roomId}`;
 }
 
 export interface RoomStore {

@@ -1,4 +1,4 @@
-import type { WireEvent } from "@cadence/protocol";
+import type { WireEvent } from "@cadero/protocol";
 import { createPtySession, type PtySession } from "./pty.js";
 import { findIntercept, isSafeCommand, type AgentName } from "./intercept.js";
 
@@ -10,7 +10,7 @@ export interface AgentSessionOptions {
   command: string;
   args?: string[];
   cwd: string;
-  socket: Pick<import("./socket.js").CadenceSocket, "send"> & {
+  socket: Pick<import("./socket.js").CaderoSocket, "send"> & {
     onEvent(handler: (event: WireEvent) => void): void;
   };
   sessionId: string;

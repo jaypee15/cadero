@@ -41,8 +41,8 @@ export async function runMain(options: MainOptions = {}): Promise<MainResult> {
   const oauthValues = {
     clientId: env.GITHUB_OAUTH_CLIENT_ID,
     clientSecret: env.GITHUB_OAUTH_CLIENT_SECRET,
-    publicUrl: env.CADENCE_RELAY_PUBLIC_URL,
-    appUrl: env.CADENCE_APP_URL,
+    publicUrl: env.CADERO_RELAY_PUBLIC_URL,
+    appUrl: env.CADERO_APP_URL,
   };
   const setCount = Object.values(oauthValues).filter(
     (v) => v !== undefined && v !== "",
@@ -60,7 +60,7 @@ export async function runMain(options: MainOptions = {}): Promise<MainResult> {
           }
         : (() => {
             throw new Error(
-              "oauth env incomplete: set all of GITHUB_OAUTH_CLIENT_ID, GITHUB_OAUTH_CLIENT_SECRET, CADENCE_RELAY_PUBLIC_URL, CADENCE_APP_URL (or none to disable the portal)",
+              "oauth env incomplete: set all of GITHUB_OAUTH_CLIENT_ID, GITHUB_OAUTH_CLIENT_SECRET, CADERO_RELAY_PUBLIC_URL, CADERO_APP_URL (or none to disable the portal)",
             );
           })();
 
@@ -68,7 +68,7 @@ export async function runMain(options: MainOptions = {}): Promise<MainResult> {
   const port = env.PORT === "0" ? 0 : Number(env.PORT) || 8787;
   await app.listen({ port, host: "0.0.0.0" });
   const bound = (app.server.address() as AddressInfo).port;
-  console.log(`cadence relay listening on :${bound}`);
+  console.log(`cadero relay listening on :${bound}`);
   return { app, port: bound };
 }
 

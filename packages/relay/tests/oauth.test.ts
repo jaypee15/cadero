@@ -57,7 +57,7 @@ describe("OAuth portal", () => {
     const target = new URL(res.headers.location as string);
     expect(target.origin + target.pathname).toBe("https://app.example.com/");
     const token = target.hash.replace("#token=", "");
-    expect(token).toMatch(/^cadence_[0-9a-f]{32}$/);
+    expect(token).toMatch(/^cadero_[0-9a-f]{32}$/);
 
     // The session token authenticates the stream handshake like a PAT would.
     const verify = createVerifyUser(redisUrl, fakeGithubFetch());

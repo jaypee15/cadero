@@ -1,4 +1,4 @@
-import type { WireEvent } from "@cadence/protocol";
+import type { WireEvent } from "@cadero/protocol";
 
 export type SessionPhase = "need-pairing" | "connecting" | "live" | "closed";
 

@@ -2,7 +2,7 @@ import {
   exportSessionKey,
   generateSessionKey,
   importSessionKey,
-} from "@cadence/protocol";
+} from "@cadero/protocol";
 
 export interface PairingInfo {
   roomId: string;
@@ -19,7 +19,7 @@ export async function pairSession(
     method: "POST",
     headers: {
       authorization: `Bearer ${githubToken}`,
-      "User-Agent": "cadence-cli",
+      "User-Agent": "cadero-cli",
     },
   });
   if (!res.ok) {
@@ -32,11 +32,11 @@ export async function pairSession(
   const roomId = body.room_id;
   const sessionKey = await generateSessionKey();
   const raw = await exportSessionKey(sessionKey);
-  const qrPayload = `cadence://pair?v=1&relay=${encodeURIComponent(relayUrl)}&room=${encodeURIComponent(roomId)}&key=${raw}`;
+  const qrPayload = `cadero://pair?v=1&relay=${encodeURIComponent(relayUrl)}&room=${encodeURIComponent(roomId)}&key=${raw}`;
   return { roomId, sessionKey, qrPayload };
 }
 
-export { parsePairingPayload, type ParsedPairing } from "@cadence/protocol";
+export { parsePairingPayload, type ParsedPairing } from "@cadero/protocol";
 
 // Re-export so mobile-side tooling and tests can import from one place.
 export { importSessionKey };

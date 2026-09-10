@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import QRCode from "qrcode";
 import { decodeQrFromImageData } from "../src/pairing/scanQr.js";
-import { parsePairingPayload } from "@cadence/protocol";
+import { parsePairingPayload } from "@cadero/protocol";
 
 async function qrImageData(payload: string): Promise<ImageData> {
   const qr = QRCode.create(payload, { errorCorrectionLevel: "M" });
@@ -22,7 +22,7 @@ async function qrImageData(payload: string): Promise<ImageData> {
 }
 
 const PAYLOAD =
-  "cadence://pair?v=1&relay=https%3A%2F%2Frelay.example.com&room=room_abc123def4567890&key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+  "cadero://pair?v=1&relay=https%3A%2F%2Frelay.example.com&room=room_abc123def4567890&key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
 describe("decodeQrFromImageData", () => {
   it("decodes a generated pairing QR into a parsed payload", async () => {
@@ -42,9 +42,9 @@ describe("decodeQrFromImageData", () => {
   });
 
   it("surfaces parsePairingPayload errors verbatim", async () => {
-    const image = await qrImageData("https://example.com/not-cadence");
+    const image = await qrImageData("https://example.com/not-cadero");
     expect(() => decodeQrFromImageData(image)).toThrow(
-      "not a cadence pairing payload",
+      "not a cadero pairing payload",
     );
   });
 });
@@ -56,7 +56,7 @@ describe("parsePairingPayload integration", () => {
       // decodeQr returns ParsedPairing already; assert the contract holds
       const parsed = decodeQrFromImageData(image);
       return parsePairingPayload(
-        `cadence://pair?v=1&relay=${encodeURIComponent(parsed.relay)}&room=${encodeURIComponent(parsed.room)}&key=${parsed.key}`,
+        `cadero://pair?v=1&relay=${encodeURIComponent(parsed.relay)}&room=${encodeURIComponent(parsed.room)}&key=${parsed.key}`,
       );
     })();
     expect(text).toEqual(decodeQrFromImageData(image));

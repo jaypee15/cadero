@@ -98,7 +98,7 @@ export function createServer(options: ServerOptions): FastifyInstance {
     }
     const state = randomBytes(16).toString("hex");
     try {
-      await oauthRedis.set(`cadence:oauth:state:${state}`, "1", "EX", OAUTH_STATE_TTL_SECONDS);
+      await oauthRedis.set(`cadero:oauth:state:${state}`, "1", "EX", OAUTH_STATE_TTL_SECONDS);
     } catch {
       return reply.code(503).send({ error: "relay unavailable" });
     }
@@ -122,7 +122,7 @@ export function createServer(options: ServerOptions): FastifyInstance {
       }
       let deleted: number;
       try {
-        deleted = await oauthRedis.del(`cadence:oauth:state:${state}`);
+        deleted = await oauthRedis.del(`cadero:oauth:state:${state}`);
       } catch {
         return reply.code(503).send({ error: "relay unavailable" });
       }
@@ -132,8 +132,8 @@ export function createServer(options: ServerOptions): FastifyInstance {
       try {
         const githubToken = await exchangeOAuthCode(options.oauth, code);
         const login = await verifyGitHubUser(githubToken, options.oauth.fetchImpl);
-        const token = `cadence_${randomBytes(16).toString("hex")}`;
-        await oauthRedis.set(`cadence:session:${token}`, login, "EX", SESSION_TTL_SECONDS);
+        const token = `cadero_${randomBytes(16).toString("hex")}`;
+        await oauthRedis.set(`cadero:session:${token}`, login, "EX", SESSION_TTL_SECONDS);
         const target = new URL(options.oauth.appUrl);
         target.hash = `token=${token}`;
         return reply.redirect(target.toString());

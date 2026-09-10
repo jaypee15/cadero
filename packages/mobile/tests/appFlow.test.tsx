@@ -4,8 +4,8 @@ import { readOAuthTokenFromHash } from "../src/app/oauth.js";
 
 describe("readOAuthTokenFromHash", () => {
   it("extracts and strips the token hash", () => {
-    window.location.hash = "#token=cadence_abc";
-    expect(readOAuthTokenFromHash()).toBe("cadence_abc");
+    window.location.hash = "#token=cadero_abc";
+    expect(readOAuthTokenFromHash()).toBe("cadero_abc");
     expect(window.location.hash).toBe("");
     expect(readOAuthTokenFromHash()).toBeNull();
   });

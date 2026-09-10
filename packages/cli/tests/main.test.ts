@@ -20,11 +20,11 @@ function fakeFetch(routes: Record<string, { status: number; body: unknown }>): t
 
 describe("runCli", () => {
   it("login runs the device flow and saves credentials", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-main-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-main-"));
     const lines: string[] = [];
     const code = await runCli(["login"], {
-      cadenceDir: dir,
-      env: { CADENCE_GITHUB_CLIENT_ID: "cid-test" },
+      caderoDir: dir,
+      env: { CADERO_GITHUB_CLIENT_ID: "cid-test" },
       fetchImpl: fakeFetch({
         "https://github.com/login/device/code": {
           status: 200,
@@ -50,24 +50,24 @@ describe("runCli", () => {
     expect(await loadCredentials(dir)).toEqual({ githubToken: "tok123" });
   });
 
-  it("login without CADENCE_GITHUB_CLIENT_ID exits 1 with guidance", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-main-"));
+  it("login without CADERO_GITHUB_CLIENT_ID exits 1 with guidance", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadero-main-"));
     const errs: string[] = [];
     const code = await runCli(["login"], {
-      cadenceDir: dir,
+      caderoDir: dir,
       env: {},
       stderr: (l) => errs.push(l),
     });
     expect(code).toBe(1);
-    expect(errs.join("\n")).toContain("CADENCE_GITHUB_CLIENT_ID");
+    expect(errs.join("\n")).toContain("CADERO_GITHUB_CLIENT_ID");
   });
 
-  it("login uses CADENCE_GITHUB_CLIENT_ID from env", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-main-"));
+  it("login uses CADERO_GITHUB_CLIENT_ID from env", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadero-main-"));
     const lines: string[] = [];
     const code = await runCli(["login"], {
-      cadenceDir: dir,
-      env: { CADENCE_GITHUB_CLIENT_ID: "cid-env" },
+      caderoDir: dir,
+      env: { CADERO_GITHUB_CLIENT_ID: "cid-env" },
       fetchImpl: fakeFetch({
         "https://github.com/login/device/code": {
           status: 200,
@@ -94,21 +94,21 @@ describe("runCli", () => {
   });
 
   it("start without credentials exits 1 with guidance", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-main-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-main-"));
     const errs: string[] = [];
     const code = await runCli(["start", "--relay-url", "https://r.example.com"], {
-      cadenceDir: dir,
+      caderoDir: dir,
       stderr: (line) => errs.push(line),
     });
     expect(code).toBe(1);
-    expect(errs.join("\n")).toContain("cadence-cli login");
+    expect(errs.join("\n")).toContain("cadero-cli login");
   });
 
   it("start without a relay URL exits 1", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-main-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-main-"));
     writeFileSync(join(dir, "credentials.json"), JSON.stringify({ githubToken: "tok" }));
     const errs: string[] = [];
-    const code = await runCli(["start"], { cadenceDir: dir, env: {}, stderr: (l) => errs.push(l) });
+    const code = await runCli(["start"], { caderoDir: dir, env: {}, stderr: (l) => errs.push(l) });
     expect(code).toBe(1);
     expect(errs.join("\n")).toContain("--relay-url");
   });
@@ -117,6 +117,6 @@ describe("runCli", () => {
     const out: string[] = [];
     const code = await runCli(["--help"], { stdout: (l) => out.push(l) });
     expect(code).toBe(0);
-    expect(out.join("\n")).toContain("cadence-cli login");
+    expect(out.join("\n")).toContain("cadero-cli login");
   });
 });

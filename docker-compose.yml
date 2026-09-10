@@ -1,3 +1,5 @@
+name: cadero
+
 services:
   redis:
     image: redis:7-alpine
@@ -13,8 +15,8 @@ services:
       PORT: "8787"
       GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID:-}
       GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
-      CADENCE_RELAY_PUBLIC_URL: ${CADENCE_RELAY_PUBLIC_URL:-}
-      CADENCE_APP_URL: ${CADENCE_APP_URL:-}
+      CADERO_RELAY_PUBLIC_URL: ${CADERO_RELAY_PUBLIC_URL:-}
+      CADERO_APP_URL: ${CADERO_APP_URL:-}
     depends_on:
       - redis
 

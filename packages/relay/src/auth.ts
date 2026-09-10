@@ -9,7 +9,7 @@ export const SESSION_TTL_SECONDS = 43200;
 export const OAUTH_STATE_TTL_SECONDS = 600;
 
 function sessionKey(token: string): string {
-  return `cadence:session:${token}`;
+  return `cadero:session:${token}`;
 }
 
 export type VerifyUserWithDisconnect = VerifyUser & { disconnect: () => void };
@@ -60,7 +60,7 @@ export async function exchangeOAuthCode(
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
-      "User-Agent": "cadence-relay",
+      "User-Agent": "cadero-relay",
     },
     body: JSON.stringify({
       client_id: config.clientId,
@@ -87,7 +87,7 @@ export async function verifyGitHubUser(
     headers: {
       Authorization: `Bearer ${accessToken}`,
       Accept: "application/vnd.github+json",
-      "User-Agent": "cadence-relay",
+      "User-Agent": "cadero-relay",
     },
   });
   if (!res.ok) {

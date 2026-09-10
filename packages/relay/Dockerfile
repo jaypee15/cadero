@@ -6,11 +6,11 @@ COPY packages/relay/package.json packages/relay/package.json
 COPY packages/cli/package.json packages/cli/package.json
 COPY packages/mobile/package.json packages/mobile/package.json
 COPY scripts/postinstall.sh scripts/postinstall.sh
-RUN npm ci --workspace=@cadence/protocol --workspace=@cadence/relay --include-workspace-root
+RUN npm ci --workspace=@cadero/protocol --workspace=@cadero/relay --include-workspace-root
 COPY tsconfig.base.json ./
 COPY packages/protocol packages/protocol
 COPY packages/relay packages/relay
-RUN npm run build --workspace=@cadence/protocol && npm run build --workspace=@cadence/relay
+RUN npm run build --workspace=@cadero/protocol && npm run build --workspace=@cadero/relay
 
 FROM node:22-alpine
 WORKDIR /app

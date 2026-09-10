@@ -1,5 +1,5 @@
 {
-  "name": "cadence",
+  "name": "cadero",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -7,9 +7,9 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspace=@cadence/protocol && npm run build --workspace=@cadence/relay && npm run build --workspace=@cadence/cli && npm run build --workspace=@cadence/mobile",
-    "test": "npm test --workspace=@cadence/protocol && npm test --workspace=@cadence/relay && npm test --workspace=@cadence/cli && npm test --workspace=@cadence/mobile",
-    "e2e": "npm run e2e --workspace=@cadence/e2e",
+    "build": "npm run build --workspace=@cadero/protocol && npm run build --workspace=@cadero/relay && npm run build --workspace=@cadero/cli && npm run build --workspace=@cadero/mobile",
+    "test": "npm test --workspace=@cadero/protocol && npm test --workspace=@cadero/relay && npm test --workspace=@cadero/cli && npm test --workspace=@cadero/mobile",
+    "e2e": "npm run e2e --workspace=@cadero/e2e",
     "postinstall": "sh scripts/postinstall.sh",
     "typecheck": "tsc --noEmit -p tsconfig.base.json && tsc --noEmit -p packages/mobile && tsc --noEmit -p packages/e2e"
   },

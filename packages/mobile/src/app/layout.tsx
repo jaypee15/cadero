@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import "./globals.css";
 
-export const metadata = { title: "Cadence", viewport: "width=device-width, initial-scale=1" };
+export const metadata = { title: "Cadero", viewport: "width=device-width, initial-scale=1" };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

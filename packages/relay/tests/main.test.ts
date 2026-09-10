@@ -42,8 +42,8 @@ describe("oauth env wiring", () => {
         PORT: "0",
         GITHUB_OAUTH_CLIENT_ID: "cid",
         GITHUB_OAUTH_CLIENT_SECRET: "sec",
-        CADENCE_RELAY_PUBLIC_URL: "https://relay.example.com",
-        CADENCE_APP_URL: "https://app.example.com",
+        CADERO_RELAY_PUBLIC_URL: "https://relay.example.com",
+        CADERO_APP_URL: "https://app.example.com",
       },
       fetchImpl,
     });
