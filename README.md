@@ -18,7 +18,11 @@ controls for every action the agent wants to take.
 
 ## Quickstart (self-host)
 
-1. `docker compose up -d` — starts Redis, the relay, and the PWA (port 8080).
+1. `docker compose up -d` — starts Redis, the relay, and the PWA. nginx
+   terminates TLS on 443 with a Cloudflare origin certificate (see
+   [docs/deploy-contabo.md](docs/deploy-contabo.md) for the full VPS +
+   Cloudflare walkthrough; locally, drop any self-signed pair into `certs/`
+   as `origin.pem`/`origin.key`).
 2. Register the two GitHub OAuth apps and set the env vars (see
    [docs/setup-oauth.md](docs/setup-oauth.md) for the walkthrough), then restart.
 3. On your dev machine, install the CLI from source (not yet published to npm):
