@@ -84,7 +84,7 @@ export class AgentSession {
       this.lineBuffer = "";
       this.prevLine = "";
       if (isSafeCommand(hit.command, this.opts.config.safeCommands)) {
-        this.pty?.write(hit.approveInput ?? this.opts.autoApproveText ?? "y\r");
+        void this.writeApproval(hit.approveInput ?? this.opts.autoApproveText ?? "y\r");
         this.sendTerminal(unforwarded);
         return;
       }
@@ -126,18 +126,21 @@ export class AgentSession {
     }
   }
 
-  private handleRemote(event: WireEvent): void {
+  private async handleRemote(event: WireEvent): Promise<void> {
     if (event.event === "RESOLVE_INTERCEPT") {
       if (!this.pending) return; // stray resolution: nothing to resolve
       this.clearInterceptTimers();
+      const pending = this.pending;
+      this.pending = undefined;
       if (event.payload.decision === "APPROVE") {
-        this.pty?.write(event.payload.input_payload ?? this.pending.approveInput ?? "y\r");
+        await this.writeApproval(
+          event.payload.input_payload ?? pending.approveInput ?? "y\r",
+        );
       } else {
         this.pty?.write("\u001b");
       }
       const flushed = this.buffer;
       this.buffer = "";
-      this.pending = undefined;
       if (flushed.length > 0) {
         this.sendTerminal(flushed);
       }
@@ -145,6 +148,19 @@ export class AgentSession {
     }
     if (event.event === "EXECUTE_AGENT_PROMPT") {
       this.pty?.write(`${event.payload.prompt}\r`);
+    }
+  }
+
+  private async writeApproval(input: string): Promise<void> {
+    // Multi-keystroke approvals (e.g. "arrow-down|Enter" for selection
+    // dialogs) are written with a gap: TUIs discard input that arrives in
+    // the same buffer as the keystroke they redraw after.
+    const parts = input.split("|");
+    for (const [index, part] of parts.entries()) {
+      this.pty?.write(part);
+      if (index < parts.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
     }
   }
 

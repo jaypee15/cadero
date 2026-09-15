@@ -27,12 +27,22 @@ describe("detectIntercept", () => {
     expect(detectIntercept("claude", "I scanned the directory and found 3 files.")).toBeNull();
   });
 
-  it("catches claude's workspace trust dialog with Enter approval", () => {
+  it("catches claude's workspace trust dialog with arrow-down + Enter approval", () => {
     const chunk =
       "Accessing workspace:\n /Users/x/cadence\n\n Quick safety check: Is this a project you created or one you trust?";
     const hit = detectIntercept("claude", chunk);
     expect(hit).not.toBeNull();
-    expect(hit!.approveInput).toBe("\r");
+    expect(hit!.approveInput).toBe("\u001b[B|\r");
+    expect(hit!.prompt).toContain("trust");
+  });
+
+  it("catches the trust dialog even when claude litters it with cursor moves", () => {
+    // Real claude output positions every word: "Quick\x1b[8Gsafety\x1b[15Gcheck:…"
+    const chunk =
+      "\u001b[2GQuick\u001b[8Gsafety\u001b[15Gcheck:\u001b[22GIs\u001b[25Gthis\u001b[30Ga\u001b[32Gproject\u001b[40Gyou\u001b[44Gcreated\u001b[52Gor\u001b[55Gone\u001b[59Gyou\u001b[63Gtrust?\u001b[70G(Like\u001b[76Gyour";
+    const hit = detectIntercept("claude", chunk);
+    expect(hit).not.toBeNull();
+    expect(hit!.approveInput).toBe("\u001b[B|\r");
     expect(hit!.prompt).toContain("trust");
   });
 });

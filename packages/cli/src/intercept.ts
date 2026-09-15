@@ -16,16 +16,16 @@ const CLAUDE_PATTERNS: PatternDefinition[] = [
   { pattern: /Press Enter to continue[^\n]*/i },
   { pattern: /Allow[^\n?]*\?[^\n]*/i },
   {
-    // Claude Code's first-run workspace trust dialog: Enter accepts the
-    // preselected "Yes, I trust this folder"; Escape declines. Matching the
-    // full "Quick safety check" line first keeps the extracted context the
-    // workspace path (the line above the question).
+    // Claude Code's first-run workspace trust dialog is a selection list with
+    // "❯ No, exit" preselected. Approval is arrow-down (to "Yes, I trust this
+    // folder") then Enter, written as two keystrokes — TUIs drop input that
+    // arrives in the same buffer as the arrow they redraw after.
     pattern: /Quick safety check:[^\n]*/i,
-    approveInput: "\r",
+    approveInput: "\u001b[B|\r",
   },
   {
     pattern: /Is this a project you created or one you trust\?[^\n]*/i,
-    approveInput: "\r",
+    approveInput: "\u001b[B|\r",
   },
 ];
 
@@ -64,11 +64,19 @@ export function findIntercept(
   text: string,
 ): InterceptMatch | null {
   const patterns = agent === "claude" ? CLAUDE_PATTERNS : OPENCODE_PATTERNS;
+  // TUIs (claude uses Ink) position every word with absolute cursor moves
+  // ("Quick\x1b[8Gsafety\x1b[15Gcheck:…"), so detection runs on a normalized
+  // view: cursor movements become the spaces they visually imply, other
+  // escapes are dropped.
+  const normalized = text
+    .replace(/\x1b\[[0-9;]*[ABCDG]/g, " ")
+    .replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "")
+    .replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)/g, "");
   for (const { pattern, approveInput } of patterns) {
-    const match = text.match(pattern);
+    const match = normalized.match(pattern);
     if (match && match.index !== undefined) {
       const prompt = trim500(match[0]);
-      const command = extractCommand(text, match.index) || prompt;
+      const command = extractCommand(normalized, match.index) || prompt;
       return { prompt, command, approveInput, end: match.index + match[0].length };
     }
   }

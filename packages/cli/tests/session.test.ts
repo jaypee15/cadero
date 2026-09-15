@@ -401,7 +401,7 @@ describe("AgentSession", () => {
     dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
     const agent = stubAgent(
       dir,
-      'printf "Quick safety check: Is this a project you created or one you trust?"; read -r -n 1 k; printf "key<%s>" "$k"; printf " trusted"',
+      'printf "Quick safety check: Is this a project you created or one you trust?"; read -r -n 3 k; printf "key<%s>" "$k"; printf " trusted"',
     );
     const socket = new FakeSocket();
     const session = new AgentSession({
@@ -425,10 +425,10 @@ describe("AgentSession", () => {
       payload: { decision: "APPROVE", input_payload: null },
     } as WireEvent);
     await socket.until((sent) => socket.joined().includes(" trusted"));
-    // The trust dialog is a selection prompt: approval is a bare Enter —
-    // never the "y" keystroke used for text prompts. The PTY line discipline
-    // swallows the bare CR (probe-verified: bash's read stores nothing).
-    expect(/key<[\r\n]?>/.test(socket.joined())).toBe(true);
+    // The trust dialog is a selection list: approval is the arrow-down
+    // sequence (ESC [ B) that selects "Yes, I trust this folder" — never the
+    // "y" keystroke used for text prompts.
+    expect(socket.joined()).toContain("key<\u001b[B>");
     expect(socket.joined()).not.toContain("key<y>");
     session.stop();
   }, 10000);
