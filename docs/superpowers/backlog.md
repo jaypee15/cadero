@@ -82,6 +82,12 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
 
 ## Product / UX
 
+- [ ] Phone-native camera pairing: the `cadero://` QR scheme only parses inside
+  the PWA's own scanner. Add an https deep-link line under the QR
+  (`https://<relay>/#pair=<urlencoded payload>`) that the PWA reads on load
+  and auto-imports after GitHub sign-in — native phone cameras would then
+  complete pairing in one scan (needs PWA hash handling + OAuth redirect
+  preserving the pairing payload). (Session feedback 2026-09-15)
 - [ ] xterm `.xterm-rows` overflows over the Send button in narrow/headless
   viewports (verified via `elementFromPoint` during E2E work; Enter-to-submit
   works and is the tested path). Layout pass: `overflow-hidden` on the
