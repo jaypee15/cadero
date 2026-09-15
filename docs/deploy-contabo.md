@@ -35,11 +35,16 @@ ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw allow 3000/tcp
 
 Close `3000` later once the dashboard has its own domain, or keep it IP-restricted.
 
-## 2. Dokploy first-run
+## 2. Dokploy first-run + Let's Encrypt
 
-Open `http://<VPS_IP>:3000`, create the admin account, and confirm the server
-shows as set up (Dokploy configures its Traefik with a Let's Encrypt resolver
-during setup — keep the email you enter there reachable).
+Open `http://<VPS_IP>:3000`, create the admin account, then **enable
+Let's Encrypt explicitly**:
+
+**Settings → Server → Web Server → Traefik**: toggle *Enable Let's Encrypt*
+and enter your email → Save (Traefik recreates with the `letsencrypt`
+resolver). This is required — the routing labels in `dokploy.yml` reference
+`certresolver=letsencrypt`, and without this toggle they silently produce no
+certificate, which surfaces as Cloudflare error **526**.
 
 ## 3. Create the Cadero service
 
@@ -93,6 +98,29 @@ confirm the `dokploy-network` exists (`docker network ls` — Dokploy creates it
 during install). If Let's Encrypt issuance fails through the Cloudflare proxy,
 switch Dokploy's server settings to the DNS challenge with a Cloudflare API
 token (Zone → DNS → Edit for `cadero.dev`).
+
+### Troubleshooting: Cloudflare error 526
+
+526 means Cloudflare reached the VPS but Traefik served no valid certificate
+for the domain. Routing for compose services is label-driven (already in
+`dokploy.yml` — you don't add the domain in the UI), so check in this order:
+
+```bash
+docker ps --format '{{.Names}}\t{{.Status}}'                # stack + traefik running?
+docker network inspect dokploy-network \
+  --format '{{range .Containers}}{{.Name}} {{end}}'         # traefik AND cadero-web-1 present?
+docker logs dokploy-traefik --tail 100 2>&1 \
+  | grep -iE "cadero|acme|letsencrypt|error"                 # issuance attempts/errors
+```
+
+- Stack containers missing → the deploy failed; check the service logs in
+  Dokploy (commonly: Environment tab missing the OAuth quartet).
+- Web not on `dokploy-network` → redeploy the service.
+- No ACME activity / "resolver not found" → Let's Encrypt was never enabled
+  (see step 2).
+- Bypass Cloudflare to isolate: from the VPS,
+  `curl -sk --resolve cadero.dev:443:127.0.0.1 https://cadero.dev/health`.
+  `200` here means the origin is fine and the issue is stale — wait a minute.
 
 ## 6. On your dev machine
 
