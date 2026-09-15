@@ -9,7 +9,9 @@ controls for every action the agent wants to take.
 
 - Zero-knowledge relay: the relay sees only room ids and ciphertext. A
   per-session AES-GCM-256 key is generated on your machine and delivered to
-  your phone exclusively via the terminal QR code.
+  your phone exclusively via the terminal QR code — the key never touches
+  browser storage. The phone's OAuth session token lives in `sessionStorage`
+  (cleared when the tab closes).
 - Local final veto: the daemon never executes shell commands from the
   network. Your phone sends high-level intents; the daemon validates
   everything and only ever feeds your existing agent's stdin.

@@ -17,7 +17,7 @@ import { TerminalView, type TerminalApi } from "../components/TerminalView";
 import { InterceptOverlay } from "../components/InterceptOverlay";
 import { PromptInput } from "../components/PromptInput";
 import { GapBanner } from "../components/GapBanner";
-import { readOAuthTokenFromHash, loginUrl } from "./oauth";
+import { readOAuthTokenFromHash, readStoredToken, storeToken, loginUrl } from "./oauth";
 
 export function CaderoApp() {
   const [state, dispatch] = useReducer(reduceSession, initialSessionState);
@@ -62,8 +62,11 @@ export function CaderoApp() {
         scannerRef.current?.stop();
         scannerRef.current = undefined;
         const sessionKey = await importSessionKey(parsed.key);
-        const token = tokenRef.current ?? readOAuthTokenFromHash();
-        if (token) tokenRef.current = token;
+        const token = tokenRef.current ?? readOAuthTokenFromHash() ?? readStoredToken();
+        if (token) {
+          tokenRef.current = token;
+          storeToken(token);
+        }
         if (!token) {
           setError(
             `No session token. Open ${loginUrl(parsed.relay)} to sign in with GitHub first.`,
@@ -179,11 +182,12 @@ export function CaderoApp() {
 
   useEffect(() => {
     // Consume the OAuth callback's token (if any) once on mount so the
-    // pairing screen can show the signed-in state; it stays memory-only
-    // and is handed to the socket when pairing completes.
-    const token = readOAuthTokenFromHash();
+    // pairing screen can show the signed-in state. The token persists in
+    // sessionStorage across reloads; the AES session key stays memory-only.
+    const token = readOAuthTokenFromHash() ?? readStoredToken();
     if (token) {
       tokenRef.current = token;
+      storeToken(token);
       setSignedIn(true);
     }
   }, []);
