@@ -1,8 +1,10 @@
 // packages/mobile/tests/appFlow.test.tsx
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 import { readOAuthTokenFromHash } from "../src/app/oauth.js";
 import { CaderoApp } from "../src/app/CaderoApp.js";
+
+afterEach(cleanup);
 
 describe("readOAuthTokenFromHash", () => {
   it("extracts and strips the token hash", () => {
@@ -18,5 +20,12 @@ describe("pairing screen", () => {
     render(<CaderoApp />);
     const link = screen.getByRole("link", { name: /sign in with github/i }) as HTMLAnchorElement;
     expect(link.getAttribute("href")).toContain("/v1/oauth/login");
+  });
+
+  it("shows a signed-in state when the oauth callback returned a token", () => {
+    window.location.hash = "#token=cadero_abc";
+    render(<CaderoApp />);
+    expect(screen.getByText(/signed in/i)).toBeDefined();
+    expect(screen.queryByRole("link", { name: /sign in with github/i })).toBeNull();
   });
 });

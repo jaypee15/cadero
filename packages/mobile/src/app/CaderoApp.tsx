@@ -30,6 +30,8 @@ export function CaderoApp() {
   const startingRef = useRef(false);
   const [manualPayload, setManualPayload] = useState("");
   const [scanning, setScanning] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
+  const tokenRef = useRef<string | null>(null);
 
   // Latest-state mirror so socket callbacks can refuse to resurrect a closed
   // session (a late CONNECTED/EVENT/GAP after CLOSED must be ignored).
@@ -60,7 +62,8 @@ export function CaderoApp() {
         scannerRef.current?.stop();
         scannerRef.current = undefined;
         const sessionKey = await importSessionKey(parsed.key);
-        const token = readOAuthTokenFromHash();
+        const token = tokenRef.current ?? readOAuthTokenFromHash();
+        if (token) tokenRef.current = token;
         if (!token) {
           setError(
             `No session token. Open ${loginUrl(parsed.relay)} to sign in with GitHub first.`,
@@ -170,6 +173,17 @@ export function CaderoApp() {
   }, [dispatchIfOpen]);
 
   useEffect(() => {
+    // Consume the OAuth callback's token (if any) once on mount so the
+    // pairing screen can show the signed-in state; it stays memory-only
+    // and is handed to the socket when pairing completes.
+    const token = readOAuthTokenFromHash();
+    if (token) {
+      tokenRef.current = token;
+      setSignedIn(true);
+    }
+  }, []);
+
+  useEffect(() => {
     return () => {
       void socketRef.current?.close();
       scannerRef.current?.stop();
@@ -193,12 +207,16 @@ export function CaderoApp() {
           1. Sign in with GitHub (once per device) · 2. Scan the QR
         </p>
         {error && <p className="text-sm text-rose-400">{error}</p>}
-        <a
-          href={`${window.location.origin}/v1/oauth/login`}
-          className="rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white"
-        >
-          Sign in with GitHub
-        </a>
+        {signedIn ? (
+          <p className="text-sm font-medium text-emerald-400">Signed in with GitHub ✓</p>
+        ) : (
+          <a
+            href={`${window.location.origin}/v1/oauth/login`}
+            className="rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white"
+          >
+            Sign in with GitHub
+          </a>
+        )}
         <video ref={videoRef} className="h-64 w-64 rounded-2xl bg-slate-800" muted playsInline />
         <button
           type="button"
