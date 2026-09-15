@@ -1,20 +1,44 @@
 export type AgentName = "claude" | "opencode";
 
-const CLAUDE_PATTERNS: RegExp[] = [
-  /Do you want to (make|proceed|run|execute)[^\n?]*\?[^\n]*/i,
-  /\[(y\/N|Y\/n|yes\/no)\]\s*$/i,
-  /Press Enter to continue[^\n]*/i,
-  /Allow[^\n?]*\?[^\n]*/i,
+interface PatternDefinition {
+  pattern: RegExp;
+  /**
+   * The keystrokes that accept this prompt, when it differs from the default
+   * approval string. Selection dialogs accept the preselected option with
+   * Enter; text prompts take "y\r".
+   */
+  approveInput?: string;
+}
+
+const CLAUDE_PATTERNS: PatternDefinition[] = [
+  { pattern: /Do you want to (make|proceed|run|execute)[^\n?]*\?[^\n]*/i },
+  { pattern: /\[(y\/N|Y\/n|yes\/no)\]\s*$/i },
+  { pattern: /Press Enter to continue[^\n]*/i },
+  { pattern: /Allow[^\n?]*\?[^\n]*/i },
+  {
+    // Claude Code's first-run workspace trust dialog: Enter accepts the
+    // preselected "Yes, I trust this folder"; Escape declines. Matching the
+    // full "Quick safety check" line first keeps the extracted context the
+    // workspace path (the line above the question).
+    pattern: /Quick safety check:[^\n]*/i,
+    approveInput: "\r",
+  },
+  {
+    pattern: /Is this a project you created or one you trust\?[^\n]*/i,
+    approveInput: "\r",
+  },
 ];
 
-const OPENCODE_PATTERNS: RegExp[] = [
-  /waiting for (your )?input[^\n]*/i,
-  /\[Y\/n\][^\n]*/i,
+const OPENCODE_PATTERNS: PatternDefinition[] = [
+  { pattern: /waiting for (your )?input[^\n]*/i },
+  { pattern: /\[Y\/n\][^\n]*/i },
 ];
 
 export interface InterceptHit {
   prompt: string;
   command: string;
+  /** Keystrokes that accept this prompt (defaults to the approval string). */
+  approveInput?: string;
 }
 
 function trim500(value: string): string {
@@ -40,12 +64,12 @@ export function findIntercept(
   text: string,
 ): InterceptMatch | null {
   const patterns = agent === "claude" ? CLAUDE_PATTERNS : OPENCODE_PATTERNS;
-  for (const pattern of patterns) {
+  for (const { pattern, approveInput } of patterns) {
     const match = text.match(pattern);
     if (match && match.index !== undefined) {
       const prompt = trim500(match[0]);
       const command = extractCommand(text, match.index) || prompt;
-      return { prompt, command, end: match.index + match[0].length };
+      return { prompt, command, approveInput, end: match.index + match[0].length };
     }
   }
   return null;
@@ -57,7 +81,7 @@ export function detectIntercept(
 ): InterceptHit | null {
   const hit = findIntercept(agent, chunk);
   if (!hit) return null;
-  return { prompt: hit.prompt, command: hit.command };
+  return { prompt: hit.prompt, command: hit.command, approveInput: hit.approveInput };
 }
 
 export function isSafeCommand(command: string, safeCommands: string[]): boolean {

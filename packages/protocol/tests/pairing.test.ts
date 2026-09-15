@@ -27,4 +27,27 @@ describe("parsePairingPayload (protocol)", () => {
       "not a cadero pairing payload",
     );
   });
+
+  it("parses the compact payload form", async () => {
+    const key = await exportSessionKey(await generateSessionKey());
+    const payload = `cadero://p?r=${encodeURIComponent("https://relay.example.com")}&m=room_abc123def4567890&k=${key}`;
+    const parsed = parsePairingPayload(payload);
+    expect(parsed).toEqual({
+      relay: "https://relay.example.com",
+      room: "room_abc123def4567890",
+      key,
+    });
+  });
+
+  it("rejects a compact payload with a malformed key", async () => {
+    const payload = "cadero://p?r=https%3A%2F%2Fr.example.com&m=room_abc123def4567890&k=nope";
+    expect(() => parsePairingPayload(payload)).toThrow("not a cadero pairing payload");
+  });
+
+  it("accepts the compact form of every documented variant", () => {
+    // scheme/host must be exact; params missing → rejected
+    expect(() => parsePairingPayload("cadero://p?r=x&m=room_abc123def4567890")).toThrow(
+      "not a cadero pairing payload",
+    );
+  });
 });

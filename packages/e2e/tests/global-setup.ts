@@ -23,7 +23,9 @@ const pty = require("node-pty") as typeof import("node-pty");
 const STATIC_PORT = 4173;
 const RELAY_PORT = 8790;
 const RELAY_URL = `http://127.0.0.1:${RELAY_PORT}`;
-const PAYLOAD_PATTERN = /cadero:\/\/pair\?v=1&\S+/;
+// The CLI emits the compact payload (cadero://p?r=…&m=…&k=…); the long form
+// (cadero://pair?v=1&…) is kept accepted for back-compat.
+const PAYLOAD_PATTERN = /cadero:\/\/(?:pair\?v=1|p)\?\S+/;
 const SETUP_DEADLINE_MS = 30000;
 
 const here = dirname(fileURLToPath(import.meta.url));

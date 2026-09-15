@@ -26,6 +26,15 @@ describe("detectIntercept", () => {
   it("passes ordinary output through", () => {
     expect(detectIntercept("claude", "I scanned the directory and found 3 files.")).toBeNull();
   });
+
+  it("catches claude's workspace trust dialog with Enter approval", () => {
+    const chunk =
+      "Accessing workspace:\n /Users/x/cadence\n\n Quick safety check: Is this a project you created or one you trust?";
+    const hit = detectIntercept("claude", chunk);
+    expect(hit).not.toBeNull();
+    expect(hit!.approveInput).toBe("\r");
+    expect(hit!.prompt).toContain("trust");
+  });
 });
 
 describe("isSafeCommand", () => {

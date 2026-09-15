@@ -32,7 +32,8 @@ export async function pairSession(
   const roomId = body.room_id;
   const sessionKey = await generateSessionKey();
   const raw = await exportSessionKey(sessionKey);
-  const qrPayload = `cadero://pair?v=1&relay=${encodeURIComponent(relayUrl)}&room=${encodeURIComponent(roomId)}&key=${raw}`;
+  // Compact payload form — a shorter string means a smaller QR matrix.
+  const qrPayload = `cadero://p?r=${encodeURIComponent(relayUrl)}&m=${roomId}&k=${raw}`;
   return { roomId, sessionKey, qrPayload };
 }
 

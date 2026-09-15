@@ -31,7 +31,7 @@ export class AgentSession {
   private static readonly MAX_HELD_LINE = 8192;
   private readonly opts: AgentSessionOptions;
   private pty: PtySession | undefined;
-  private pending: { command: string } | undefined;
+  private pending: { command: string; approveInput?: string } | undefined;
   private buffer = "";
   private lineBuffer = "";
   private prevLine = "";
@@ -75,11 +75,11 @@ export class AgentSession {
       this.lineBuffer = "";
       this.prevLine = "";
       if (isSafeCommand(hit.command, this.opts.config.safeCommands)) {
-        this.pty?.write(this.opts.autoApproveText ?? "y\r");
+        this.pty?.write(hit.approveInput ?? this.opts.autoApproveText ?? "y\r");
         this.sendTerminal(unforwarded);
         return;
       }
-      this.pending = { command: hit.command };
+      this.pending = { command: hit.command, approveInput: hit.approveInput };
       this.armInterceptTimeout();
       // Flush everything up to and including the matched prompt; anything
       // after it waits behind the pending intercept.
@@ -122,7 +122,7 @@ export class AgentSession {
       if (!this.pending) return; // stray resolution: nothing to resolve
       this.clearInterceptTimeout();
       if (event.payload.decision === "APPROVE") {
-        this.pty?.write(event.payload.input_payload ?? "y\r");
+        this.pty?.write(event.payload.input_payload ?? this.pending.approveInput ?? "y\r");
       } else {
         this.pty?.write("\u001b");
       }

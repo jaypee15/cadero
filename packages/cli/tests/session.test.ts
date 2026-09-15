@@ -396,4 +396,40 @@ describe("AgentSession", () => {
     expect(socket.closeArgs.length).toBe(1);
     session.stop();
   }, 10000);
+
+  it("sends the trust dialog to the phone and writes Enter on approve", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    const agent = stubAgent(
+      dir,
+      'printf "Quick safety check: Is this a project you created or one you trust?"; read -r -n 1 k; printf "key<%s>" "$k"; printf " trusted"',
+    );
+    const socket = new FakeSocket();
+    const session = new AgentSession({
+      agent: "claude",
+      command: "bash",
+      args: [agent],
+      cwd: dir,
+      socket: socket as never,
+      sessionId: "sess_1",
+      config: { safeCommands: [] },
+    });
+    session.start();
+    await socket.until((sent) => sent.some((e) => e.event === "INTERCEPT_REQUIRED"));
+    const intercept = socket.sent.find((e) => e.event === "INTERCEPT_REQUIRED");
+    // Fixture has no preceding workspace line, so the command falls back to
+    // the matched dialog text itself.
+    expect((intercept!.payload as { command: string }).command).toContain("trust");
+    socket.handler!({
+      event: "RESOLVE_INTERCEPT",
+      meta: { session_id: "sess_1" },
+      payload: { decision: "APPROVE", input_payload: null },
+    } as WireEvent);
+    await socket.until((sent) => socket.joined().includes(" trusted"));
+    // The trust dialog is a selection prompt: approval is a bare Enter —
+    // never the "y" keystroke used for text prompts. The PTY line discipline
+    // swallows the bare CR (probe-verified: bash's read stores nothing).
+    expect(/key<[\r\n]?>/.test(socket.joined())).toBe(true);
+    expect(socket.joined()).not.toContain("key<y>");
+    session.stop();
+  }, 10000);
 });
