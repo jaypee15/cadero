@@ -105,9 +105,10 @@ export function CaderoApp() {
         socketRef.current = socket;
         await socket.connect();
         // Everything the agent emitted before this join is unrecoverable
-        // (the relay replays nothing), so set the expectation in the feed.
+        // (the relay replays nothing), so set the expectation in the feed —
+        // and name the room, so a stale-QR mismatch is visible on the spot.
         termRef.current?.write(
-          "\n[connected to the live session — output from here on; earlier output is not replayed]\n",
+          `\n[connected to room ${parsed.room} — live output from here on; earlier output is not replayed]\n`,
         );
         dispatchIfOpen({ type: "CONNECTED" });
       } catch (err) {
