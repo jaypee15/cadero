@@ -99,7 +99,7 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
       fetchImpl,
     );
     const qr = await import("qrcode");
-    out(await qr.toString(qrPayload, { type: "terminal" }));
+    out(await qr.toString(qrPayload, { type: "terminal", small: true }));
     // Zero-knowledge: the raw session key stays on the visible terminal
     // (manual fallback for a failed scan). Never expose it to redirects,
     // so only print it when stdout is an interactive TTY.
