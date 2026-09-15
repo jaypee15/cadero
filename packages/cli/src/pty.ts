@@ -6,6 +6,7 @@ export interface PtySession {
   onData(cb: (chunk: string) => void): void;
   onExit(cb: (code: number) => void): void;
   write(input: string): void;
+  resize(cols: number, rows: number): void;
   kill(): void;
 }
 
@@ -83,6 +84,9 @@ export function createPtySession(opts: PtyOptions): PtySession {
     },
     write(input) {
       proc.write(input);
+    },
+    resize(cols, rows) {
+      proc.resize(cols, rows);
     },
     kill() {
       proc.kill();

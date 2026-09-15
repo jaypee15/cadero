@@ -64,4 +64,21 @@ describe("WireEventSchema", () => {
     });
     expect(parsed.success).toBe(false);
   });
+
+  it("accepts TERMINAL_RESIZE with sane dimensions and rejects absurd ones", () => {
+    expect(
+      WireEventSchema.safeParse({
+        event: "TERMINAL_RESIZE",
+        meta: { session_id: "sess_1" },
+        payload: { cols: 50, rows: 24 },
+      }).success,
+    ).toBe(true);
+    expect(
+      WireEventSchema.safeParse({
+        event: "TERMINAL_RESIZE",
+        meta: { session_id: "sess_1" },
+        payload: { cols: 99999, rows: 1 },
+      }).success,
+    ).toBe(false);
+  });
 });

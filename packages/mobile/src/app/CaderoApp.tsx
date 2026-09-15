@@ -54,6 +54,28 @@ export function CaderoApp() {
     termRef.current = api;
   }, []);
 
+  // Latest phone terminal dimensions, sent to the CLI on join and whenever
+  // the viewport refits (rotation, keyboard). Trailing-debounced 300ms.
+  const termDimsRef = useRef<{ cols: number; rows: number } | undefined>(undefined);
+  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const handleTerminalResize = useCallback((dims: { cols: number; rows: number }) => {
+    termDimsRef.current = dims;
+    if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
+    resizeTimerRef.current = setTimeout(() => {
+      const socket = socketRef.current;
+      if (!socket) return;
+      socket
+        .send({
+          event: "TERMINAL_RESIZE",
+          meta: { session_id: "mobile" },
+          payload: dims,
+        })
+        .catch(() => {
+          /* resize frames dropped during a reconnect gap are harmless */
+        });
+    }, 300);
+  }, []);
+
   const startSession = useCallback(
     async (parsed: { relay: string; room: string; key: string }) => {
       if (startingRef.current) return;
@@ -104,6 +126,16 @@ export function CaderoApp() {
         void socketRef.current?.close();
         socketRef.current = socket;
         await socket.connect();
+        // The phone's terminal is now the authoritative viewport: tell the
+        // agent its dimensions so it redraws the TUI to fit the phone.
+        const dims = termDimsRef.current;
+        if (dims) {
+          await socket.send({
+            event: "TERMINAL_RESIZE",
+            meta: { session_id: "mobile" },
+            payload: dims,
+          });
+        }
         // Everything the agent emitted before this join is unrecoverable
         // (the relay replays nothing), so set the expectation in the feed —
         // and name the room, so a stale-QR mismatch is visible on the spot.
@@ -264,7 +296,7 @@ export function CaderoApp() {
     <main className="flex h-dvh flex-col bg-slate-900">
       <GapBanner visible={state.gapped} />
       <div className="relative min-h-0 flex-1">
-        <TerminalView onReady={handleTerminalReady} />
+        <TerminalView onReady={handleTerminalReady} onResize={handleTerminalResize} />
         {state.intercept && (
           <InterceptOverlay
             intercept={state.intercept}

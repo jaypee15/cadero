@@ -17,7 +17,10 @@ export interface AgentSessionOptions {
   command: string;
   args?: string[];
   cwd: string;
-  socket: Pick<import("./socket.js").CaderoSocket, "send"> & {
+  /** Initial PTY dimensions (default: the invoking terminal's size). */
+  cols?: number;
+  rows?: number;
+  socket: Pick<import("./socket.js").CaderoSocket, "send" | "close"> & {
     onEvent(handler: (event: WireEvent) => void): void;
   };
   sessionId: string;
@@ -55,6 +58,8 @@ export class AgentSession {
       command: this.opts.command,
       args: this.opts.args,
       cwd: this.opts.cwd,
+      cols: this.opts.cols,
+      rows: this.opts.rows,
     });
     this.pty.onData((chunk) => {
       // The operator at the terminal sees exactly what the phone sees.
@@ -144,6 +149,12 @@ export class AgentSession {
       if (flushed.length > 0) {
         this.sendTerminal(flushed);
       }
+      return;
+    }
+    if (event.event === "TERMINAL_RESIZE") {
+      // The phone's terminal is now the authoritative viewport: the agent
+      // gets SIGWINCH and redraws its TUI to fit the phone.
+      this.pty?.resize(event.payload.cols, event.payload.rows);
       return;
     }
     if (event.event === "EXECUTE_AGENT_PROMPT") {

@@ -397,6 +397,31 @@ describe("AgentSession", () => {
     session.stop();
   }, 10000);
 
+  it("resizes the pty to the dimensions the phone sends", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    const agent = stubAgent(dir, "sleep 0.8; stty size; sleep 2");
+    const socket = new FakeSocket();
+    const session = new AgentSession({
+      agent: "claude",
+      command: "bash",
+      args: [agent],
+      cwd: dir,
+      socket: socket as never,
+      sessionId: "sess_1",
+      config: { safeCommands: [] },
+      interceptReEmitMs: 50,
+    });
+    session.start();
+    socket.handler!({
+      event: "TERMINAL_RESIZE",
+      meta: { session_id: "sess_1" },
+      payload: { cols: 50, rows: 24 },
+    } as WireEvent);
+    // stty prints "rows cols"
+    await socket.until((sent) => socket.joined().includes("24 50"));
+    session.stop();
+  }, 10000);
+
   it("sends the trust dialog to the phone and writes Enter on approve", async () => {
     dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
     const agent = stubAgent(

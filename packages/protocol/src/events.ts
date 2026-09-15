@@ -52,6 +52,15 @@ export const SessionEndedSchema = z.object({
   }),
 });
 
+export const TerminalResizeSchema = z.object({
+  event: z.literal("TERMINAL_RESIZE"),
+  meta: metaSchema,
+  payload: z.object({
+    cols: z.number().int().min(10).max(500),
+    rows: z.number().int().min(5).max(300),
+  }),
+});
+
 export const WireEventSchema = z.discriminatedUnion("event", [
   TerminalDataSchema,
   InterceptRequiredSchema,
@@ -59,6 +68,7 @@ export const WireEventSchema = z.discriminatedUnion("event", [
   ExecuteAgentPromptSchema,
   HeartbeatSchema,
   SessionEndedSchema,
+  TerminalResizeSchema,
 ]);
 
 export type TerminalData = z.infer<typeof TerminalDataSchema>;
@@ -67,4 +77,5 @@ export type ResolveIntercept = z.infer<typeof ResolveInterceptSchema>;
 export type ExecuteAgentPrompt = z.infer<typeof ExecuteAgentPromptSchema>;
 export type Heartbeat = z.infer<typeof HeartbeatSchema>;
 export type SessionEnded = z.infer<typeof SessionEndedSchema>;
+export type TerminalResize = z.infer<typeof TerminalResizeSchema>;
 export type WireEvent = z.infer<typeof WireEventSchema>;

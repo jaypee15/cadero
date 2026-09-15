@@ -11,10 +11,18 @@ export interface TerminalApi {
   dispose(): void;
 }
 
-export function TerminalView({ onReady }: { onReady(api: TerminalApi): void }) {
+export function TerminalView({
+  onReady,
+  onResize,
+}: {
+  onReady(api: TerminalApi): void;
+  onResize?(dims: { cols: number; rows: number }): void;
+}) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | undefined>(undefined);
   const fitRef = useRef<FitAddon | undefined>(undefined);
+  const onResizeRef = useRef(onResize);
+  onResizeRef.current = onResize;
 
   useEffect(() => {
     let disposed = false;
@@ -38,6 +46,9 @@ export function TerminalView({ onReady }: { onReady(api: TerminalApi): void }) {
       const refit = () => {
         try {
           fitAddon.fit();
+          if (Number.isFinite(term.cols) && Number.isFinite(term.rows)) {
+            onResizeRef.current?.({ cols: term.cols, rows: term.rows });
+          }
         } catch {
           /* zero-dimension container mid-layout: the observer refits on resize */
         }
