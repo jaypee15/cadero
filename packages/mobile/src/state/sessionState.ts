@@ -69,6 +69,9 @@ export function reduceSession(state: SessionState, action: SessionAction): Sessi
           },
         };
       }
+      if (event.event === "SESSION_ENDED") {
+        return { ...state, phase: "closed", closedReason: event.payload.reason };
+      }
       return state; // mobile-direction events never arrive here
     }
   }

@@ -42,6 +42,10 @@ class FakeSocket {
       await new Promise((r) => setTimeout(r, 25));
     }
   }
+  closeArgs: Array<{ code?: number; reason?: string }> = [];
+  async close(code?: number, reason?: string): Promise<void> {
+    this.closeArgs.push({ code, reason });
+  }
 }
 
 class OfflineFirstSocket {
@@ -118,10 +122,10 @@ describe("AgentSession", () => {
     });
     session.start();
     await socket.until((sent) => socket.joined().includes(" done"));
-    // The intercept hit was safe-listed: only the TERMINAL_DATA went out,
+    // The intercept hit was safe-listed: no INTERCEPT_REQUIRED went out,
     // the approval keystroke was written straight into the PTY, and the
     // post-approval output arrives.
-    expect(socket.sent.every((e) => e.event === "TERMINAL_DATA")).toBe(true);
+    expect(socket.sent.some((e) => e.event === "INTERCEPT_REQUIRED")).toBe(false);
     const chunks = socket.joined();
     expect(chunks).toContain(" done");
     session.stop();
@@ -345,6 +349,51 @@ describe("AgentSession", () => {
     } as WireEvent);
     await socket.all(3);
     expect(socket.sent.some((e) => (e.payload as { chunk?: string }).chunk?.includes("timed out"))).toBe(false);
+    session.stop();
+  }, 10000);
+
+  it("mirrors agent output to the local operator", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    const agent = stubAgent(dir, 'printf "operator-marker"');
+    const socket = new FakeSocket();
+    const local: string[] = [];
+    const session = new AgentSession({
+      agent: "claude",
+      command: "bash",
+      args: [agent],
+      cwd: dir,
+      socket: socket as never,
+      sessionId: "sess_1",
+      config: { safeCommands: [] },
+      onLocalOutput: (chunk) => local.push(chunk),
+    });
+    session.start();
+    await socket.until((events) => events.some((e) => (e.payload as { chunk?: string }).chunk?.includes("operator-marker")));
+    expect(local.join("")).toContain("operator-marker");
+    session.stop();
+  }, 10000);
+
+  it("closes the session and notifies onEnd when the agent exits", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    const agent = stubAgent(dir, 'printf "bye"; exit 7');
+    const socket = new FakeSocket();
+    const ended: number[] = [];
+    const session = new AgentSession({
+      agent: "claude",
+      command: "bash",
+      args: [agent],
+      cwd: dir,
+      socket: socket as never,
+      sessionId: "sess_1",
+      config: { safeCommands: [] },
+      onEnd: (code) => ended.push(code),
+    });
+    session.start();
+    await socket.until((events) => events.some((e) => e.event === "SESSION_ENDED"));
+    const endedEvent = socket.sent.find((e) => e.event === "SESSION_ENDED");
+    expect((endedEvent!.payload as { code: number }).code).toBe(7);
+    expect(ended).toEqual([7]);
+    expect(socket.closeArgs.length).toBe(1);
     session.stop();
   }, 10000);
 });

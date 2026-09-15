@@ -18,6 +18,10 @@ export interface AgentSessionOptions {
   autoApproveText?: string;
   interceptTimeoutMs?: number;
   onError?: (message: string) => void;
+  /** Mirror every PTY chunk to the operator's terminal. */
+  onLocalOutput?: (chunk: string) => void;
+  /** Called once after the agent exits and the final frames are sent. */
+  onEnd?: (code: number) => void;
 }
 
 export class AgentSession {
@@ -43,7 +47,11 @@ export class AgentSession {
       args: this.opts.args,
       cwd: this.opts.cwd,
     });
-    this.pty.onData((chunk) => this.handleChunk(chunk));
+    this.pty.onData((chunk) => {
+      // The operator at the terminal sees exactly what the phone sees.
+      this.opts.onLocalOutput?.(chunk);
+      this.handleChunk(chunk);
+    });
     this.pty.onExit((code) => this.handleExit(code));
     this.opts.socket.onEvent((event) => this.handleRemote(event));
   }
@@ -143,6 +151,16 @@ export class AgentSession {
       if (flushed.length > 0) this.sendTerminal(flushed);
     }
     this.sendTerminal(`\n[session exited with code ${code}]\n`);
+    // Tell the phone the session is over (it reacts with a closed screen and
+    // stops reconnecting), then tear down this side as well.
+    this.trySend({
+      event: "SESSION_ENDED",
+      meta: { session_id: this.opts.sessionId },
+      payload: { code, reason: `agent exited with code ${code}` },
+    });
+    this.opts.onEnd?.(code);
+    const socket = this.opts.socket as { close?: () => void };
+    if (typeof socket.close === "function") void socket.close();
     this.pty = undefined;
   }
 

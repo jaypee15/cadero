@@ -148,6 +148,11 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
       config,
       interceptTimeoutMs,
       onError: (message) => err(message),
+      onLocalOutput: (chunk) => process.stdout.write(chunk),
+      onEnd: (code) => {
+        err(`agent exited with code ${code}; session closed`);
+        process.exit(code === 0 ? 0 : 1);
+      },
     });
     session.start();
     out(`agent '${agent}' running in ${cwd} (session ${sessionId})`);

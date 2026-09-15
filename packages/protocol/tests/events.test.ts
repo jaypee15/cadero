@@ -46,4 +46,22 @@ describe("WireEventSchema", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("accepts SESSION_ENDED with a code and reason", () => {
+    const parsed = WireEventSchema.safeParse({
+      event: "SESSION_ENDED",
+      meta: { session_id: "sess_91823" },
+      payload: { code: 1, reason: "agent exited with code 1" },
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects SESSION_ENDED with a non-numeric code", () => {
+    const parsed = WireEventSchema.safeParse({
+      event: "SESSION_ENDED",
+      meta: { session_id: "sess_91823" },
+      payload: { code: "one", reason: "agent exited" },
+    });
+    expect(parsed.success).toBe(false);
+  });
 });

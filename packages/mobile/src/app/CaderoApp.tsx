@@ -83,6 +83,11 @@ export function CaderoApp() {
             if (event.event === "TERMINAL_DATA") {
               termRef.current?.write(event.payload.chunk);
             }
+            if (event.event === "SESSION_ENDED") {
+              dispatchIfOpen({ type: "EVENT", event });
+              void socketRef.current?.close();
+              return;
+            }
             dispatchIfOpen({ type: "EVENT", event });
           },
           onGap: () => {

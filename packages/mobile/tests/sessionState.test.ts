@@ -69,4 +69,17 @@ describe("reduceSession", () => {
   it("exposes the gap marker constant", () => {
     expect(GAP_MARKER).toContain("output during the gap was not captured");
   });
+
+  it("closes on SESSION_ENDED with the agent's reason", () => {
+    const closed = reduceSession(initial, {
+      type: "EVENT",
+      event: {
+        event: "SESSION_ENDED",
+        meta: { session_id: "s" },
+        payload: { code: 1, reason: "agent exited with code 1" },
+      },
+    });
+    expect(closed.phase).toBe("closed");
+    expect(closed.closedReason).toContain("agent exited with code 1");
+  });
 });

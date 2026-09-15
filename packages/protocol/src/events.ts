@@ -43,12 +43,22 @@ export const HeartbeatSchema = z.object({
   payload: z.object({}).strict(),
 });
 
+export const SessionEndedSchema = z.object({
+  event: z.literal("SESSION_ENDED"),
+  meta: metaSchema,
+  payload: z.object({
+    code: z.number().int(),
+    reason: z.string().min(1),
+  }),
+});
+
 export const WireEventSchema = z.discriminatedUnion("event", [
   TerminalDataSchema,
   InterceptRequiredSchema,
   ResolveInterceptSchema,
   ExecuteAgentPromptSchema,
   HeartbeatSchema,
+  SessionEndedSchema,
 ]);
 
 export type TerminalData = z.infer<typeof TerminalDataSchema>;
@@ -56,4 +66,5 @@ export type InterceptRequired = z.infer<typeof InterceptRequiredSchema>;
 export type ResolveIntercept = z.infer<typeof ResolveInterceptSchema>;
 export type ExecuteAgentPrompt = z.infer<typeof ExecuteAgentPromptSchema>;
 export type Heartbeat = z.infer<typeof HeartbeatSchema>;
+export type SessionEnded = z.infer<typeof SessionEndedSchema>;
 export type WireEvent = z.infer<typeof WireEventSchema>;
