@@ -118,6 +118,13 @@ docker logs dokploy-traefik --tail 100 2>&1 \
 - Web not on `dokploy-network` → redeploy the service.
 - No ACME activity / "resolver not found" → Let's Encrypt was never enabled
   (see step 2).
+- Traefik log: `invalid authorization ... no valid A records found for
+  cadero.dev` → Let's Encrypt looked up the domain and found no A record at
+  that moment — either the Cloudflare A record was added after Traefik's
+  attempt (redeploy the service to retry) or the record isn't publicly
+  visible at all. Check with `dig cadero.dev @1.1.1.1 +short` (expect
+  Cloudflare IPs when proxied, the VPS IP when DNS-only, nothing = zone not
+  active or nameservers not switched at the registrar).
 - Bypass Cloudflare to isolate: from the VPS,
   `curl -sk --resolve cadero.dev:443:127.0.0.1 https://cadero.dev/health`.
   `200` here means the origin is fine and the issue is stale — wait a minute.
