@@ -18,11 +18,14 @@ export async function pairSession(
   const res = await fetchImpl(`${relayUrl}/v1/pair`, {
     method: "POST",
     headers: {
-      authorization: `Bearer ${githubToken}`,
+      Authorization: `Bearer ${githubToken}`,
       "User-Agent": "cadero-cli",
     },
   });
   if (!res.ok) {
+    if (res.status === 401) {
+      throw new Error("saved login was rejected (HTTP 401) — run: cadero-cli login");
+    }
     throw new Error(`pairing failed: HTTP ${res.status}`);
   }
   const body = (await res.json()) as { room_id?: unknown };

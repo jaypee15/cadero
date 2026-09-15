@@ -12,7 +12,7 @@ describe("pairSession", () => {
     const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe("https://relay.example.com/v1/pair");
       expect(init?.method).toBe("POST");
-      const auth = (init?.headers as Record<string, string>).authorization;
+      const auth = new Headers(init?.headers).get("authorization");
       expect(auth).toBe("Bearer tok123");
       return new Response(JSON.stringify({ room_id: "room_abc123def4567890" }), {
         status: 200,
@@ -44,13 +44,13 @@ describe("pairSession", () => {
     });
   });
 
-  it("fails loudly on an unauthorized pair", async () => {
+  it("fails loudly on an unauthorized pair with re-login guidance", async () => {
     const fetchImpl = (async () =>
       new Response(JSON.stringify({ error: "unauthorized" }), {
         status: 401,
       })) as typeof fetch;
     await expect(pairSession("https://relay.example.com", "bad", fetchImpl)).rejects.toThrow(
-      "pairing failed: HTTP 401",
+      "saved login was rejected (HTTP 401) — run: cadero-cli login",
     );
   });
 });
