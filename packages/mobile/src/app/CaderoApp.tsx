@@ -115,6 +115,19 @@ export function CaderoApp() {
           onGap: () => {
             termRef.current?.write(GAP_MARKER);
             dispatchIfOpen({ type: "GAP" });
+            // Re-assert the viewport after a reconnect gap: a resize frame
+            // lost while the relay was down must not leave the agent drawing
+            // at stale dimensions.
+            const dims = termDimsRef.current;
+            if (dims) {
+              socketRef.current
+                ?.send({
+                  event: "TERMINAL_RESIZE",
+                  meta: { session_id: "mobile" },
+                  payload: dims,
+                })
+                .catch(() => {});
+            }
           },
           onClosed: (code, reason) => dispatch({ type: "CLOSED", code, reason }),
           onFatal: () =>
@@ -237,78 +250,86 @@ export function CaderoApp() {
       scannerRef.current = undefined;
     };
   }, []);
-  if (state.phase === "closed") {
-    return (
-      <main className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
-        <p className="text-lg font-semibold">Session closed</p>
-        <p className="text-sm text-slate-400">{state.closedReason ?? "The session ended."}</p>
-      </main>
-    );
-  }
-
-  if (state.phase === "need-pairing") {
-    return (
-      <main className="flex min-h-dvh flex-col items-center justify-center gap-6 p-6">
-        <h1 className="text-xl font-semibold">Pair with your desktop</h1>
-        <p className="text-sm text-slate-400">
-          1. Sign in with GitHub (once per device) · 2. Scan the QR
-        </p>
-        {error && <p className="text-sm text-rose-400">{error}</p>}
-        {signedIn ? (
-          <p className="text-sm font-medium text-emerald-400">Signed in with GitHub ✓</p>
-        ) : (
-          <a
-            href={`${window.location.origin}/v1/oauth/login`}
-            className="rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white"
-          >
-            Sign in with GitHub
-          </a>
-        )}
-        <video ref={videoRef} className="h-64 w-64 rounded-2xl bg-slate-800" muted playsInline />
-        <button
-          type="button"
-          onClick={() => void scanViaCamera()}
-          disabled={scanning}
-          className="rounded-xl bg-sky-600 px-6 py-3 font-semibold text-white disabled:opacity-40"
-        >
-          {scanning ? "Scanning…" : "Scan QR code"}
-        </button>
-        <div className="w-full max-w-sm">
-          <textarea
-            value={manualPayload}
-            onChange={(event) => setManualPayload(event.target.value)}
-            placeholder="…or paste the pairing payload"
-            className="h-20 w-full rounded-xl bg-slate-950 p-3 font-mono text-xs text-slate-300"
-          />
-          <button
-            type="button"
-            onClick={importManual}
-            className="mt-2 w-full rounded-xl bg-slate-700 px-4 py-2 text-sm font-medium text-slate-100"
-          >
-            Pair manually
-          </button>
-        </div>
-      </main>
-    );
-  }
+  // The terminal layer is ALWAYS mounted: the phone's terminal dimensions
+  // must be known before the socket joins, so the resize is the first frame
+  // the CLI sees and the agent never draws at the wrong width. While pairing
+  // or closed it is invisible but still sized to the real viewport.
+  const live = state.phase === "live" || state.phase === "connecting";
 
   return (
-    <main className="flex h-dvh flex-col bg-slate-900">
-      <GapBanner visible={state.gapped} />
-      <div className="relative min-h-0 flex-1">
-        <TerminalView onReady={handleTerminalReady} onResize={handleTerminalResize} />
-        {state.intercept && (
-          <InterceptOverlay
-            intercept={state.intercept}
-            busy={resolving}
-            onDecision={(d) => void decide(d)}
-          />
-        )}
+    <>
+      <div
+        className={
+          live
+            ? "flex h-dvh flex-col bg-slate-900"
+            : "fixed inset-0 opacity-0 pointer-events-none"
+        }
+      >
+        <GapBanner visible={state.gapped} />
+        <div className="relative min-h-0 flex-1">
+          <TerminalView onReady={handleTerminalReady} onResize={handleTerminalResize} />
+          {state.intercept && (
+            <InterceptOverlay
+              intercept={state.intercept}
+              busy={resolving}
+              onDecision={(d) => void decide(d)}
+            />
+          )}
+        </div>
+        <PromptInput
+          disabled={state.intercept !== null || state.phase !== "live"}
+          onSend={(p) => void sendPrompt(p)}
+        />
       </div>
-      <PromptInput
-        disabled={state.intercept !== null || state.phase !== "live"}
-        onSend={(p) => void sendPrompt(p)}
-      />
-    </main>
+      {state.phase === "need-pairing" && (
+        <main className="fixed inset-0 z-10 flex min-h-dvh flex-col items-center justify-center gap-6 bg-slate-900 p-6">
+          <h1 className="text-xl font-semibold">Pair with your desktop</h1>
+          <p className="text-sm text-slate-400">
+            1. Sign in with GitHub (once per device) · 2. Scan the QR
+          </p>
+          {error && <p className="text-sm text-rose-400">{error}</p>}
+          {signedIn ? (
+            <p className="text-sm font-medium text-emerald-400">Signed in with GitHub ✓</p>
+          ) : (
+            <a
+              href={`${window.location.origin}/v1/oauth/login`}
+              className="rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white"
+            >
+              Sign in with GitHub
+            </a>
+          )}
+          <video ref={videoRef} className="h-64 w-64 rounded-2xl bg-slate-800" muted playsInline />
+          <button
+            type="button"
+            onClick={() => void scanViaCamera()}
+            disabled={scanning}
+            className="rounded-xl bg-sky-600 px-6 py-3 font-semibold text-white disabled:opacity-40"
+          >
+            {scanning ? "Scanning…" : "Scan QR code"}
+          </button>
+          <div className="w-full max-w-sm">
+            <textarea
+              value={manualPayload}
+              onChange={(event) => setManualPayload(event.target.value)}
+              placeholder="…or paste the pairing payload"
+              className="h-20 w-full rounded-xl bg-slate-950 p-3 font-mono text-xs text-slate-300"
+            />
+            <button
+              type="button"
+              onClick={importManual}
+              className="mt-2 w-full rounded-xl bg-slate-700 px-4 py-2 text-sm font-medium text-slate-100"
+            >
+              Pair manually
+            </button>
+          </div>
+        </main>
+      )}
+      {state.phase === "closed" && (
+        <main className="fixed inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-slate-900 p-6 text-center">
+          <p className="text-lg font-semibold">Session closed</p>
+          <p className="text-sm text-slate-400">{state.closedReason ?? "The session ended."}</p>
+        </main>
+      )}
+    </>
   );
 }

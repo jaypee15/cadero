@@ -152,11 +152,32 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
     const MIRROR_GRACE_MS = 60000;
     let mirroring = false;
     const held: string[] = [];
+    // The mirrored stream is a passive viewer: the agent's terminal queries
+    // (XTVERSION, DA1, Kitty keyboard, focus-report enables) are housekeeping
+    // with no responder attached — the operator's terminal would answer them
+    // and the answers echo back as visible garbage.
+    const MIRROR_HOUSEKEEPING: RegExp[] = [
+      /\x1b\[\?u/g,
+      /\x1b\[>0q/g,
+      /\x1b\[>q/g,
+      /\x1b\[6n/g,
+      /\x1b\[c/g,
+      /\x1b\[>c/g,
+      /\x1b\[\?1004h/g,
+      /\x1b\[\?100[0-6]h/g,
+      /\x1b\[\?2004h/g,
+      /\x1b\[\?[0-9;]*\$p/g,
+    ];
+    const stripHousekeeping = (chunk: string): string => {
+      let out = chunk;
+      for (const pattern of MIRROR_HOUSEKEEPING) out = out.replace(pattern, "");
+      return out;
+    };
     const startMirroring = (reason: string) => {
       if (mirroring) return;
       mirroring = true;
       err(reason);
-      for (const chunk of held.splice(0)) process.stdout.write(chunk);
+      for (const chunk of held.splice(0)) process.stdout.write(stripHousekeeping(chunk));
     };
     const mirrorGrace = setTimeout(() => {
       startMirroring(
@@ -173,7 +194,9 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
       config,
       interceptTimeoutMs,
       onError: (message) => err(message),
-      onLocalOutput: (chunk) => {
+      onLocalOutput: (raw) => {
+        const chunk = stripHousekeeping(raw);
+        if (chunk.length === 0) return;
         if (mirroring) {
           process.stdout.write(chunk);
         } else {

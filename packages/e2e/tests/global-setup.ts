@@ -24,8 +24,9 @@ const STATIC_PORT = 4173;
 const RELAY_PORT = 8790;
 const RELAY_URL = `http://127.0.0.1:${RELAY_PORT}`;
 // The CLI emits the compact payload (cadero://p?r=…&m=…&k=…); the long form
-// (cadero://pair?v=1&…) is kept accepted for back-compat.
-const PAYLOAD_PATTERN = /cadero:\/\/(?:pair\?v=1|p)\?\S+/;
+// (cadero://pair?v=1&…) is kept accepted for back-compat. The trailing CRLF
+// is required so a PTY chunk boundary can never produce a truncated match.
+const PAYLOAD_PATTERN = /cadero:\/\/(?:pair\?v=1|p)\?[^\r\n]+[\r\n]+/;
 const SETUP_DEADLINE_MS = 30000;
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -157,8 +158,11 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     cliPty.onData((chunk) => {
       cliLogBuffer.push(chunk);
       if (!payload) {
+        // Only accept the payload once its line is COMPLETE (the CLI prints
+        // it with a trailing CRLF): a PTY chunk boundary can split the line,
+        // and a truncated capture fails validation downstream.
         const hit = cliLogBuffer.join("").match(PAYLOAD_PATTERN);
-        if (hit) payload = hit[0];
+        if (hit) payload = hit[0].replace(/[\r\n]+$/, "");
       }
     });
     cliPty.onExit(({ exitCode }) => {
