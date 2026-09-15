@@ -189,7 +189,16 @@ export function CaderoApp() {
     return (
       <main className="flex min-h-dvh flex-col items-center justify-center gap-6 p-6">
         <h1 className="text-xl font-semibold">Pair with your desktop</h1>
+        <p className="text-sm text-slate-400">
+          1. Sign in with GitHub (once per device) · 2. Scan the QR
+        </p>
         {error && <p className="text-sm text-rose-400">{error}</p>}
+        <a
+          href={`${window.location.origin}/v1/oauth/login`}
+          className="rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white"
+        >
+          Sign in with GitHub
+        </a>
         <video ref={videoRef} className="h-64 w-64 rounded-2xl bg-slate-800" muted playsInline />
         <button
           type="button"
