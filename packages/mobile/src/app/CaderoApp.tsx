@@ -96,6 +96,11 @@ export function CaderoApp() {
         void socketRef.current?.close();
         socketRef.current = socket;
         await socket.connect();
+        // Everything the agent emitted before this join is unrecoverable
+        // (the relay replays nothing), so set the expectation in the feed.
+        termRef.current?.write(
+          "\n[connected to the live session — output from here on; earlier output is not replayed]\n",
+        );
         dispatchIfOpen({ type: "CONNECTED" });
       } catch (err) {
         setError(err instanceof Error ? err.message : "pairing failed");
