@@ -145,6 +145,25 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
     }
     const interceptTimeoutMs =
       interceptTimeoutRaw !== undefined ? Number(interceptTimeoutRaw) : INTERCEPT_TIMEOUT_MS;
+
+    // Hold the local mirror until the phone joins (its first resize frame) or
+    // a grace period elapses — otherwise the agent's full-screen TUI floods
+    // the terminal and destroys the QR the operator still needs to scan.
+    const MIRROR_GRACE_MS = 60000;
+    let mirroring = false;
+    const held: string[] = [];
+    const startMirroring = (reason: string) => {
+      if (mirroring) return;
+      mirroring = true;
+      err(reason);
+      for (const chunk of held.splice(0)) process.stdout.write(chunk);
+    };
+    const mirrorGrace = setTimeout(() => {
+      startMirroring(
+        "no phone paired after 60s — showing agent output here; the QR payload remains in the lines above",
+      );
+    }, MIRROR_GRACE_MS);
+
     const session = new AgentSession({
       agent,
       command: agent,
@@ -154,7 +173,18 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
       config,
       interceptTimeoutMs,
       onError: (message) => err(message),
-      onLocalOutput: (chunk) => process.stdout.write(chunk),
+      onLocalOutput: (chunk) => {
+        if (mirroring) {
+          process.stdout.write(chunk);
+        } else {
+          held.push(chunk);
+          if (held.length > 400) held.shift();
+        }
+      },
+      onPhoneJoined: () => {
+        clearTimeout(mirrorGrace);
+        startMirroring("phone connected — agent output mirrored here (sized to the phone's viewport)");
+      },
       onEnd: (code) => {
         err(`agent exited with code ${code}; session closed`);
         process.exit(code === 0 ? 0 : 1);

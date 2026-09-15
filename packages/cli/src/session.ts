@@ -31,6 +31,8 @@ export interface AgentSessionOptions {
   onError?: (message: string) => void;
   /** Mirror every PTY chunk to the operator's terminal. */
   onLocalOutput?: (chunk: string) => void;
+  /** Fired on the first TERMINAL_RESIZE: a phone has joined the room. */
+  onPhoneJoined?: () => void;
   /** Called once after the agent exits and the final frames are sent. */
   onEnd?: (code: number) => void;
 }
@@ -153,7 +155,9 @@ export class AgentSession {
     }
     if (event.event === "TERMINAL_RESIZE") {
       // The phone's terminal is now the authoritative viewport: the agent
-      // gets SIGWINCH and redraws its TUI to fit the phone.
+      // gets SIGWINCH and redraws its TUI to fit the phone. The first of
+      // these is also the reliable "a phone joined" signal.
+      this.opts.onPhoneJoined?.();
       this.pty?.resize(event.payload.cols, event.payload.rows);
       return;
     }

@@ -401,6 +401,7 @@ describe("AgentSession", () => {
     dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
     const agent = stubAgent(dir, "sleep 0.8; stty size; sleep 2");
     const socket = new FakeSocket();
+    let phoneJoined = 0;
     const session = new AgentSession({
       agent: "claude",
       command: "bash",
@@ -410,6 +411,9 @@ describe("AgentSession", () => {
       sessionId: "sess_1",
       config: { safeCommands: [] },
       interceptReEmitMs: 50,
+      onPhoneJoined: () => {
+        phoneJoined += 1;
+      },
     });
     session.start();
     socket.handler!({
@@ -419,6 +423,7 @@ describe("AgentSession", () => {
     } as WireEvent);
     // stty prints "rows cols"
     await socket.until((sent) => socket.joined().includes("24 50"));
+    expect(phoneJoined).toBe(1);
     session.stop();
   }, 10000);
 
