@@ -432,4 +432,61 @@ describe("AgentSession", () => {
     expect(socket.joined()).not.toContain("key<y>");
     session.stop();
   }, 10000);
+
+  it("re-emits INTERCEPT_REQUIRED while pending so a late-joining phone sees it", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    const agent = stubAgent(
+      dir,
+      'printf "rm -rf ./dist\\nDo you want to proceed? [y/N]"; sleep 5; printf " never"',
+    );
+    const socket = new FakeSocket();
+    const session = new AgentSession({
+      agent: "claude",
+      command: "bash",
+      args: [agent],
+      cwd: dir,
+      socket: socket as never,
+      sessionId: "sess_1",
+      config: { safeCommands: [] },
+      interceptTimeoutMs: 10000,
+      interceptReEmitMs: 50,
+    });
+    session.start();
+    await socket.until(
+      (sent) => sent.filter((e) => e.event === "INTERCEPT_REQUIRED").length >= 2,
+      3000,
+    );
+    session.stop();
+  }, 10000);
+
+  it("stops re-emitting once the intercept is resolved", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    const agent = stubAgent(
+      dir,
+      'printf "rm -rf ./dist\\nDo you want to proceed? [y/N]"; read -r -n 1 k; printf " resolved"',
+    );
+    const socket = new FakeSocket();
+    const session = new AgentSession({
+      agent: "claude",
+      command: "bash",
+      args: [agent],
+      cwd: dir,
+      socket: socket as never,
+      sessionId: "sess_1",
+      config: { safeCommands: [] },
+      interceptReEmitMs: 50,
+    });
+    session.start();
+    await socket.until((sent) => sent.some((e) => e.event === "INTERCEPT_REQUIRED"));
+    socket.handler!({
+      event: "RESOLVE_INTERCEPT",
+      meta: { session_id: "sess_1" },
+      payload: { decision: "APPROVE", input_payload: null },
+    } as WireEvent);
+    await socket.until((sent) => socket.joined().includes(" resolved"));
+    const count = socket.sent.filter((e) => e.event === "INTERCEPT_REQUIRED").length;
+    await new Promise((r) => setTimeout(r, 300));
+    expect(socket.sent.filter((e) => e.event === "INTERCEPT_REQUIRED").length).toBe(count);
+    session.stop();
+  }, 10000);
 });

@@ -25,12 +25,15 @@ export function parsePairingPayload(payload: string): ParsedPairing {
     return { relay, room, key };
   }
   if (url.protocol === "cadero:" && url.hostname === "p") {
-    const relay = url.searchParams.get("r");
+    const rawRelay = url.searchParams.get("r");
     const room = url.searchParams.get("m");
     const key = url.searchParams.get("k");
-    if (!relay || !room || !key || !KEY_PATTERN.test(key)) {
+    if (!rawRelay || !room || !key || !KEY_PATTERN.test(key)) {
       throw new Error("not a cadero pairing payload");
     }
+    // A bare host means the production https edge (dev relays carry the
+    // explicit http scheme).
+    const relay = rawRelay.includes("://") ? rawRelay : `https://${rawRelay}`;
     return { relay, room, key };
   }
   throw new Error("not a cadero pairing payload");

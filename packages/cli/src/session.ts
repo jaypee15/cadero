@@ -5,6 +5,13 @@ import { findIntercept, isSafeCommand, type AgentName } from "./intercept.js";
 /** Spec §6: an intercept with no mobile response is denied after 15 minutes. */
 export const INTERCEPT_TIMEOUT_MS = 900000;
 
+/**
+ * A pending INTERCEPT_REQUIRED raised before any phone joins the room is
+ * unrecoverable otherwise (the relay replays nothing), so it is re-sent
+ * periodically until resolved.
+ */
+export const INTERCEPT_REEMIT_MS = 3000;
+
 export interface AgentSessionOptions {
   agent: AgentName;
   command: string;
@@ -17,6 +24,7 @@ export interface AgentSessionOptions {
   config: { safeCommands: string[] };
   autoApproveText?: string;
   interceptTimeoutMs?: number;
+  interceptReEmitMs?: number;
   onError?: (message: string) => void;
   /** Mirror every PTY chunk to the operator's terminal. */
   onLocalOutput?: (chunk: string) => void;
@@ -36,6 +44,7 @@ export class AgentSession {
   private lineBuffer = "";
   private prevLine = "";
   private timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+  private reemitTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(opts: AgentSessionOptions) {
     this.opts = opts;
@@ -57,7 +66,7 @@ export class AgentSession {
   }
 
   stop(): void {
-    this.clearInterceptTimeout();
+    this.clearInterceptTimers();
     this.pty?.kill();
     this.pty = undefined;
   }
@@ -80,7 +89,7 @@ export class AgentSession {
         return;
       }
       this.pending = { command: hit.command, approveInput: hit.approveInput };
-      this.armInterceptTimeout();
+      this.armInterceptTimers();
       // Flush everything up to and including the matched prompt; anything
       // after it waits behind the pending intercept.
       const matchStart = Math.max(0, hit.end - prefix.length);
@@ -120,7 +129,7 @@ export class AgentSession {
   private handleRemote(event: WireEvent): void {
     if (event.event === "RESOLVE_INTERCEPT") {
       if (!this.pending) return; // stray resolution: nothing to resolve
-      this.clearInterceptTimeout();
+      this.clearInterceptTimers();
       if (event.payload.decision === "APPROVE") {
         this.pty?.write(event.payload.input_payload ?? this.pending.approveInput ?? "y\r");
       } else {
@@ -144,7 +153,7 @@ export class AgentSession {
     this.lineBuffer = "";
     if (tail.length > 0) this.sendTerminal(tail);
     if (this.pending) {
-      this.clearInterceptTimeout();
+      this.clearInterceptTimers();
       const flushed = this.buffer;
       this.buffer = "";
       this.pending = undefined;
@@ -164,12 +173,13 @@ export class AgentSession {
     this.pty = undefined;
   }
 
-  private armInterceptTimeout(): void {
+  private armInterceptTimers(): void {
+    // Denial deadline (spec §6)…
     const ms = this.opts.interceptTimeoutMs ?? INTERCEPT_TIMEOUT_MS;
     this.timeoutTimer = setTimeout(() => {
       void (async () => {
         if (!this.pending) return;
-        this.clearInterceptTimeout();
+        this.clearInterceptTimers();
         this.pending = undefined;
         this.pty?.write("\u001b");
         const seconds = Math.round(ms / 1000);
@@ -182,15 +192,43 @@ export class AgentSession {
         });
         this.opts.onError?.("intercept timed out; command denied; session ending");
         const socket = this.opts.socket as { close?: () => void };
-        if (typeof socket.close === "function") socket.close();
+        if (typeof socket.close === "function") void socket.close();
         this.stop();
       })();
     }, ms);
+    // …and the periodic re-send that lets a late-joining phone see the
+    // pending intercept (the relay replays nothing).
+    const reemit = this.opts.interceptReEmitMs ?? INTERCEPT_REEMIT_MS;
+    this.reemitTimer = setInterval(() => {
+      if (!this.pending) {
+        this.clearReEmitTimer();
+        return;
+      }
+      this.trySend({
+        event: "INTERCEPT_REQUIRED",
+        meta: { session_id: this.opts.sessionId },
+        payload: {
+          agent: this.opts.agent,
+          reason: "EXECUTE_COMMAND",
+          command: this.pending.command,
+        },
+      });
+    }, reemit);
   }
 
   private clearInterceptTimeout(): void {
     if (this.timeoutTimer) clearTimeout(this.timeoutTimer);
     this.timeoutTimer = undefined;
+  }
+
+  private clearReEmitTimer(): void {
+    if (this.reemitTimer) clearInterval(this.reemitTimer);
+    this.reemitTimer = undefined;
+  }
+
+  private clearInterceptTimers(): void {
+    this.clearInterceptTimeout();
+    this.clearReEmitTimer();
   }
 
   private trySend(event: WireEvent): void {

@@ -33,7 +33,10 @@ export async function pairSession(
   const sessionKey = await generateSessionKey();
   const raw = await exportSessionKey(sessionKey);
   // Compact payload form — a shorter string means a smaller QR matrix.
-  const qrPayload = `cadero://p?r=${encodeURIComponent(relayUrl)}&m=${roomId}&k=${raw}`;
+  // https relays emit a bare host (the parser assumes the scheme); explicit
+  // schemes (e.g. http://localhost:8787 in dev) are carried in full.
+  const relayField = relayUrl.startsWith("https://") ? relayUrl.slice("https://".length) : relayUrl;
+  const qrPayload = `cadero://p?r=${encodeURIComponent(relayField)}&m=${roomId}&k=${raw}`;
   return { roomId, sessionKey, qrPayload };
 }
 

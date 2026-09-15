@@ -39,6 +39,21 @@ describe("parsePairingPayload (protocol)", () => {
     });
   });
 
+  it("parses a compact payload with a bare host as https", async () => {
+    const key = await exportSessionKey(await generateSessionKey());
+    const payload = `cadero://p?r=cadero.dev&m=room_abc123def4567890&k=${key}`;
+    const parsed = parsePairingPayload(payload);
+    expect(parsed.relay).toBe("https://cadero.dev");
+    expect(parsed.room).toBe("room_abc123def4567890");
+    expect(parsed.key).toBe(key);
+  });
+
+  it("keeps an explicit http scheme when given in the compact form", async () => {
+    const key = await exportSessionKey(await generateSessionKey());
+    const payload = `cadero://p?r=${encodeURIComponent("http://localhost:8787")}&m=room_abc123def4567890&k=${key}`;
+    expect(parsePairingPayload(payload).relay).toBe("http://localhost:8787");
+  });
+
   it("rejects a compact payload with a malformed key", async () => {
     const payload = "cadero://p?r=https%3A%2F%2Fr.example.com&m=room_abc123def4567890&k=nope";
     expect(() => parsePairingPayload(payload)).toThrow("not a cadero pairing payload");
