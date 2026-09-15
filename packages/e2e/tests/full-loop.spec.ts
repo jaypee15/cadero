@@ -33,6 +33,19 @@ async function expectTerminalText(page: Page, marker: string, timeout: number): 
 
 test("pair, watch terminal, prompt the agent", async ({ page }) => {
   await pair(page);
+  // Regression guard: the xterm stylesheet must be applied (the keyboard
+  // helper textarea is moved off-screen and hidden by xterm.css). Missing
+  // xterm.css renders it as a visible default textarea and breaks layout —
+  // invisible output on a real device even though the DOM has the text.
+  await expect(async () => {
+    const styled = await page.evaluate(() => {
+      const helper = document.querySelector<HTMLElement>(".xterm-helper-textarea");
+      if (!helper) return false;
+      const cs = getComputedStyle(helper);
+      return cs.position === "absolute" && cs.opacity === "0";
+    });
+    expect(styled).toBe(true);
+  }).toPass({ timeout: 15000 });
   const prompt = page.getByPlaceholder(/prompt the agent/i);
   await prompt.fill("say hi");
   await prompt.press("Enter");

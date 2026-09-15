@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
+import "@xterm/xterm/css/xterm.css";
 
 export interface TerminalApi {
   write(chunk: string): void;
@@ -34,7 +35,13 @@ export function TerminalView({ onReady }: { onReady(api: TerminalApi): void }) {
       term.open(hostRef.current);
       termRef.current = term;
       fitRef.current = fitAddon;
-      const refit = () => fitAddon.fit();
+      const refit = () => {
+        try {
+          fitAddon.fit();
+        } catch {
+          /* zero-dimension container mid-layout: the observer refits on resize */
+        }
+      };
       observer = new ResizeObserver(refit);
       observer.observe(hostRef.current);
       onReady({
