@@ -9,12 +9,12 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
 
 ## Release blockers
 
-- [ ] Register the two GitHub OAuth apps and configure the deployment:
+- [x] Register the two GitHub OAuth apps and configure the deployment
+  (DONE 2026-09-15: production is live at https://cadero.dev on the Contabo
+  VPS via Dokploy + Cloudflare; both apps registered and wired):
   - CLI app (device flow, no secret) → `CADERO_GITHUB_CLIENT_ID` for `cadero-cli login`.
   - Relay app (authorization code + client secret) → `GITHUB_OAUTH_CLIENT_ID`,
     `GITHUB_OAUTH_CLIENT_SECRET`, `CADERO_RELAY_PUBLIC_URL`, `CADERO_APP_URL`.
-  - Without these, `cadero-cli login` exits 1 and the relay's OAuth portal
-    returns 503 (both by design — fail fast).
 - [ ] Publish `@cadero/cli` to npm. The README quickstart currently documents
   clone + `npm run build` + `npm link ./packages/cli` (verified against a fresh
   clone); switch it to `npm install -g @cadero/cli` once published. (Plan 4)
