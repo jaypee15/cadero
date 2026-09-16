@@ -88,12 +88,43 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
 
 ## Product / UX
 
-- [ ] Phone-native camera pairing: the `cadero://` QR scheme only parses inside
-  the PWA's own scanner. Add an https deep-link line under the QR
-  (`https://<relay>/#pair=<urlencoded payload>`) that the PWA reads on load
-  and auto-imports after GitHub sign-in — native phone cameras would then
-  complete pairing in one scan (needs PWA hash handling + OAuth redirect
-  preserving the pairing payload). (Session feedback 2026-09-15)
+- [x] Phone-native camera pairing (DONE 2026-09-16): the CLI prints an
+  `https://<relay>/#pair=<urlencoded payload>` deep-link line + a second
+  native-camera QR under the pairing QR (TTY-gated, same zero-knowledge
+  posture). The PWA reads `#pair=` on load, stashes it in sessionStorage
+  (fragments never survive the OAuth redirect), and auto-imports it after
+  GitHub sign-in — a native camera completes pairing in one scan. Covered
+  by `appFlow.test.tsx` deep-link tests.
+- [x] Multi-session switcher — DONE, see the dedicated entry further below in
+  this section.
+- [x] Parked: opencode E2E final assertion is intermittent — the planned
+  next-step instrumentation already ships: the `?debug=1` status element
+  shows the phone-side frame count (`frames:`) alongside phase/gapped/
+  intercept, plus `[e2e-trace]` console traces and ws frame instrumentation.
+  The flake itself remains parked (retries: 1 absorbs it in CI).
+  (DONE 2026-09-16)
+- [x] Attach to an agent session started *outside* Cadero (plain `claude` in
+  a normal terminal): documented as unsupported in the README multi-session
+  section (the daemon must own the PTY from process start; OS-level PTY
+  hijacking is the only attach route and is a security-model question).
+  (DONE 2026-09-16)
+- [x] xterm `.xterm-rows` overflows over the Send button in narrow/headless
+  viewports — fixed with `overflow-hidden` + z-order on the terminal host
+  container (`TerminalView.tsx`). (DONE 2026-09-16)
+- [x] Document `--agent <claude|opencode|codex>` in the README config table
+  (including the codex option beyond the backlog's original two).
+  (DONE 2026-09-16)
+- [ ] Real-device PWA validation — manual checklist (needs a physical phone):
+  1. iOS Safari: PWA install (Add to Home Screen), standalone launch, no
+     browser chrome.
+  2. Pair via the native camera QR → GitHub sign-in → auto-import → live.
+  3. Pair a second `cadero-cli start` session; switch tabs on the phone;
+     verify background rooms buffer output and the approval badge shows.
+  4. Reload the PWA mid-session: sessions reconnect from the stash.
+  5. Keyboard: viewport refit on keyboard open/close (resize frames),
+     Enter-to-send, prompt gating while an intercept is pending.
+  6. Suspend the phone (background) for ~2 min; verify GAP banner +
+     auto-reconnect on return.
 - [x] Multi-session switcher (DONE 2026-09-16, superseding the original design
   constraints): the phone holds **all paired rooms connected concurrently** —
   every room gets its own `MobileSocket` with heartbeat/staleness/auto-

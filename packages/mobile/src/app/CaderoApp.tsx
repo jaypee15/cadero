@@ -13,7 +13,15 @@ import { TerminalView, type TerminalApi } from "../components/TerminalView";
 import { InterceptOverlay } from "../components/InterceptOverlay";
 import { PromptInput } from "../components/PromptInput";
 import { GapBanner } from "../components/GapBanner";
-import { readOAuthTokenFromHash, readStoredToken, storeToken, loginUrl } from "./oauth";
+import {
+  clearPairingStash,
+  readOAuthTokenFromHash,
+  readPairingFromHash,
+  readPairingStash,
+  readStoredToken,
+  storeToken,
+  loginUrl,
+} from "./oauth";
 
 export function CaderoApp({ store = defaultSessionStore }: { store?: SessionStore } = {}) {
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);
@@ -158,14 +166,27 @@ export function CaderoApp({ store = defaultSessionStore }: { store?: SessionStor
     // Consume the OAuth callback's token (if any) once on mount so the
     // pairing screen can show the signed-in state, then reconnect any
     // previously paired sessions.
+    readPairingFromHash();
     const token = readOAuthTokenFromHash() ?? readStoredToken();
     if (token) {
       tokenRef.current = token;
       storeToken(token);
       setSignedIn(true);
     }
+    // Deep-link pairing: a #pair= payload stashed on load auto-imports as
+    // soon as a token is available (natively scanned QR → sign-in → live).
+    const stashed = readPairingStash();
+    if (stashed && tokenRef.current) {
+      clearPairingStash();
+      try {
+        void startSession(parsePairingPayload(stashed));
+      } catch {
+        setError("invalid pairing payload in deep link");
+      }
+      return;
+    }
     void store.restore();
-  }, [store]);
+  }, [store, startSession]);
 
   useEffect(() => {
     return () => {

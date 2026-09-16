@@ -73,5 +73,7 @@ export function TerminalView({
     };
   }, [onReady]);
 
-  return <div ref={hostRef} className="h-full w-full" />;
+  // overflow-hidden clips .xterm-rows so it can never spill over the Send
+  // button in narrow viewports (Enter-to-submit stays the tested path).
+  return <div ref={hostRef} className="relative z-0 h-full w-full overflow-hidden" />;
 }
