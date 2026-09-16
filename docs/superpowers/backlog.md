@@ -88,6 +88,21 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
   and auto-imports after GitHub sign-in — native phone cameras would then
   complete pairing in one scan (needs PWA hash handling + OAuth redirect
   preserving the pairing payload). (Session feedback 2026-09-15)
+- [ ] Multi-session switcher: two `cadero-cli start` instances (two
+  terminals/codebases) create two isolated rooms — the phone pairs to one
+  at a time; switching today = reload the PWA + re-scan the other QR (two
+  tabs also work, one session each). Design constraint: the relay can never
+  re-deliver a session key (zero-knowledge), so a one-UI switcher means the
+  phone holds keys for multiple paired rooms in memory with a room picker,
+  or rooms re-issue QRs per switch. Needs a design pass. (Session feedback
+  2026-09-15)
+- [ ] Attach to an agent session started *outside* Cadero (plain `claude` in
+  a normal terminal): currently impossible by design — the daemon must own
+  the PTY from process start to intercept prompts, mirror output, and sync
+  viewport size, and the session key exists only for Cadero-spawned
+  sessions. OS-level PTY hijacking (ptrace/tty redirection) is the only
+  attach route and is fragile + a security-model question. Document the
+  limitation in the README. (Session feedback 2026-09-15)
 - [ ] xterm `.xterm-rows` overflows over the Send button in narrow/headless
   viewports (verified via `elementFromPoint` during E2E work; Enter-to-submit
   works and is the tested path). Layout pass: `overflow-hidden` on the
