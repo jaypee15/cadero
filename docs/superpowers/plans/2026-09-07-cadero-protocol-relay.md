@@ -1,4 +1,4 @@
-# Cadence Plan 1: Protocol plus Relay Implementation Plan
+# Cadero Plan 1: Protocol plus Relay Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -12,7 +12,7 @@
 
 - Node 20 or newer, no exceptions.
 - TypeScript strict mode in every package, `tsc --noEmit` must pass.
-- npm workspaces, package names `@cadence/protocol` and `@cadence/relay`.
+- npm workspaces, package names `@cadero/protocol` and `@cadero/relay`.
 - Real Redis required; no in-memory room fallback in implementation or tests.
 - Relay never persists payloads and never logs frame bodies.
 - Relay never sees plaintext or AES keys; it routes on the `room_id` header only.
@@ -37,7 +37,7 @@
 
 ```json
 {
-  "name": "cadence",
+  "name": "cadero",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -75,7 +75,7 @@
 
 ```json
 {
-  "name": "@cadence/protocol",
+  "name": "@cadero/protocol",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -104,7 +104,7 @@
 
 ```json
 {
-  "name": "@cadence/relay",
+  "name": "@cadero/relay",
   "version": "0.1.0",
   "type": "module",
   "scripts": {
@@ -113,7 +113,7 @@
     "start": "node ./dist/server.js"
   },
   "dependencies": {
-    "@cadence/protocol": "0.1.0",
+    "@cadero/protocol": "0.1.0",
     "@fastify/websocket": "^10.0.0",
     "fastify": "^5.0.0",
     "ioredis": "^5.4.0",
@@ -189,7 +189,7 @@ describe("WireEventSchema", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/protocol`
+Run: `npm test --workspace=@cadero/protocol`
 Expected: FAIL with "Cannot find module '../src/events.js'".
 
 - [ ] **Step 3: Write minimal implementation**
@@ -255,7 +255,7 @@ export * from "./events.js";
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npm test --workspace=@cadence/protocol`
+Run: `npm test --workspace=@cadero/protocol`
 Expected: 3 passed.
 
 - [ ] **Step 5: Commit**
@@ -321,7 +321,7 @@ describe("envelope", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/protocol`
+Run: `npm test --workspace=@cadero/protocol`
 Expected: FAIL with "Cannot find module '../src/envelope.js'".
 
 - [ ] **Step 3: Write minimal implementation**
@@ -399,7 +399,7 @@ export async function decryptEnvelope(
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm test --workspace=@cadence/protocol`
+Run: `npm test --workspace=@cadero/protocol`
 Expected: 6 passed (3 event tests plus 3 envelope tests).
 
 - [ ] **Step 5: Commit**
@@ -439,7 +439,7 @@ describe("createServer", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/relay`
+Run: `npm test --workspace=@cadero/relay`
 Expected: FAIL with "Cannot find module '../src/server.js'".
 
 - [ ] **Step 3: Write minimal implementation**
@@ -487,7 +487,7 @@ export function createServer(options: ServerOptions): FastifyInstance {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npm test --workspace=@cadence/relay`
+Run: `npm test --workspace=@cadero/relay`
 Expected: 1 passed. Port 6399 must have nothing listening so Redis reports down.
 
 - [ ] **Step 5: Commit**
@@ -526,7 +526,7 @@ describe("createRoomStore", () => {
     const roomId = await store.createRoom();
     expect(roomId).toMatch(/^room_[0-9a-f]{16}$/);
     expect(await store.roomExists(roomId)).toBe(true);
-    const ttl = await admin.ttl(`cadence:room:${roomId}`);
+    const ttl = await admin.ttl(`cadero:room:${roomId}`);
     expect(ttl).toBeGreaterThan(14000);
     expect(ttl).toBeLessThanOrEqual(14400);
     store.disconnect();
@@ -544,7 +544,7 @@ Test dependency: start real Redis with `docker run -d -p 6379:6379 redis:7-alpin
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/relay`
+Run: `npm test --workspace=@cadero/relay`
 Expected: FAIL with "Cannot find module '../src/rooms.js'".
 
 - [ ] **Step 3: Write minimal implementation**
@@ -557,7 +557,7 @@ import { randomBytes } from "node:crypto";
 export const ROOM_TTL_SECONDS = 14400;
 
 function roomKey(roomId: string): string {
-  return `cadence:room:${roomId}`;
+  return `cadero:room:${roomId}`;
 }
 
 export interface RoomStore {
@@ -595,7 +595,7 @@ export function createRoomStore(redisUrl: string): RoomStore {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `docker run -d -p 6379:6379 redis:7-alpine` (once), then `npm test --workspace=@cadence/relay`
+Run: `docker run -d -p 6379:6379 redis:7-alpine` (once), then `npm test --workspace=@cadero/relay`
 Expected: all relay tests pass.
 
 - [ ] **Step 5: Commit**
@@ -656,7 +656,7 @@ describe("auth", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/relay`
+Run: `npm test --workspace=@cadero/relay`
 Expected: FAIL with "Cannot find module '../src/auth.js'".
 
 - [ ] **Step 3: Write minimal implementation**
@@ -677,7 +677,7 @@ export async function verifyGitHubUser(
     headers: {
       Authorization: `Bearer ${accessToken}`,
       Accept: "application/vnd.github+json",
-      "User-Agent": "cadence-relay",
+      "User-Agent": "cadero-relay",
     },
   });
   if (!res.ok) {
@@ -703,7 +703,7 @@ export async function pairRoom(
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm test --workspace=@cadence/relay`
+Run: `npm test --workspace=@cadero/relay`
 Expected: all relay tests pass.
 
 - [ ] **Step 5: Commit**
@@ -722,7 +722,7 @@ git commit -m "feat(relay): add GitHub OAuth verification and room pairing"
 
 **Interfaces:**
 - Consumes: `createServer` from Task 4, `createRoomStore` and `touchRoom` from Task 5, `verifyGitHubUser` from Task 6, `EncryptedEnvelopeSchema` from Task 3.
-- Produces: `GET /v1/stream?room_id=...&token=...` websocket endpoint plus a `verifyUser` server option for tests. First client message must be untouched relay behavior for later CLI and mobile plans: frames are `EncryptedEnvelope` JSON, validated, published to `cadence:frames:<room_id>`, fanned out to every other socket in the room. Malformed frames are dropped without closing the socket.
+- Produces: `GET /v1/stream?room_id=...&token=...` websocket endpoint plus a `verifyUser` server option for tests. First client message must be untouched relay behavior for later CLI and mobile plans: frames are `EncryptedEnvelope` JSON, validated, published to `cadero:frames:<room_id>`, fanned out to every other socket in the room. Malformed frames are dropped without closing the socket.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -731,7 +731,7 @@ git commit -m "feat(relay): add GitHub OAuth verification and room pairing"
 import { describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import type { AddressInfo } from "node:net";
-import { generateSessionKey, encryptEnvelope } from "@cadence/protocol";
+import { generateSessionKey, encryptEnvelope } from "@cadero/protocol";
 import { createServer } from "../src/server.js";
 import { createRoomStore } from "../src/rooms.js";
 
@@ -782,11 +782,11 @@ describe("room routing", () => {
 });
 ```
 
-Build the protocol package first so the `@cadence/protocol` import in this test resolves to `dist`.
+Build the protocol package first so the `@cadero/protocol` import in this test resolves to `dist`.
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm run build --workspace=@cadence/protocol && npm test --workspace=@cadence/relay`
+Run: `npm run build --workspace=@cadero/protocol && npm test --workspace=@cadero/relay`
 Expected: FAIL with 404 for `/v1/stream` because the route does not exist yet.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -795,13 +795,13 @@ Expected: FAIL with 404 for `/v1/stream` because the route does not exist yet.
 // packages/relay/src/socket.ts
 import type { FastifyInstance } from "fastify";
 import Redis from "ioredis";
-import { EncryptedEnvelopeSchema } from "@cadence/protocol";
+import { EncryptedEnvelopeSchema } from "@cadero/protocol";
 import { createRoomStore } from "./rooms.js";
 
 export type VerifyUser = (token: string) => Promise<string>;
 
 function framesChannel(roomId: string): string {
-  return `cadence:frames:${roomId}`;
+  return `cadero:frames:${roomId}`;
 }
 
 export function registerStreamRoute(
@@ -924,7 +924,7 @@ export function createServer(options: ServerOptions): FastifyInstance {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm run build --workspace=@cadence/protocol && npm test --workspace=@cadence/relay`
+Run: `npm run build --workspace=@cadero/protocol && npm test --workspace=@cadero/relay`
 Expected: all relay tests pass, including fanout within 15 seconds.
 
 - [ ] **Step 5: Commit**
@@ -969,7 +969,7 @@ describe("redactForLog", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/relay`
+Run: `npm test --workspace=@cadero/relay`
 Expected: FAIL with "Cannot find module '../src/logging.js'".
 
 - [ ] **Step 3: Write minimal implementation**
@@ -1008,7 +1008,7 @@ if (!envelope.success || envelope.data.room_id !== roomId) {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm test --workspace=@cadence/relay && npm test --workspace=@cadence/protocol && npm run typecheck`
+Run: `npm test --workspace=@cadero/relay && npm test --workspace=@cadero/protocol && npm run typecheck`
 Expected: everything green; this is the Plan 1 exit gate.
 
 - [ ] **Step 5: Commit**

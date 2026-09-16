@@ -1,4 +1,4 @@
-# Cadence Hardening + Deployment + E2E Implementation Plan
+# Cadero Hardening + Deployment + E2E Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -12,13 +12,13 @@
 
 - Node 20 or newer, no exceptions.
 - TypeScript strict mode in every package, `tsc --noEmit` must pass (root `npm run typecheck` — root program + mobile program).
-- npm workspaces, package names `@cadence/protocol`, `@cadence/relay`, `@cadence/cli`, `@cadence/mobile`.
+- npm workspaces, package names `@cadero/protocol`, `@cadero/relay`, `@cadero/cli`, `@cadero/mobile`.
 - Real Redis required; no in-memory fallbacks; no dev bypasses in shipped code (test-seeded tokens live only in test setup code).
 - Zero-knowledge: heartbeats are encrypted like every other frame; the relay routes them blind; no plaintext transport mode is introduced.
 - Local final veto: PTY writes remain only approval keystrokes and prompt text.
 - Never log credentials, tokens, or frame bodies.
-- Fail fast: missing `CADENCE_GITHUB_CLIENT_ID` blocks `cadence-cli login` with a clear error.
-- Existing interfaces (exact names, Plans 1-3): `@cadence/protocol` — `WireEventSchema`, `WireEvent`, `encryptEnvelope`, `decryptEnvelope`, `EnvelopeError`, `generateSessionKey`, `exportSessionKey`, `importSessionKey`, `parsePairingPayload`; `@cadence/relay` — `createServer({ redisUrl, verifyUser?, oauth? })`, `createRoomStore(redisUrl)`, `createVerifyUser(redisUrl)` (callable with `.disconnect()`), `runMain({ env? })` (port default 8787), stream close codes 4401/4404; `@cadence/cli` — `CadenceSocket` opts `{ relayUrl, roomId, token, sessionKey, sessionId, onClose?, onFatal? }`, `AgentSession` opts `{ agent, command, args?, cwd, socket, sessionId, config, autoApproveText?, onError? }` (pending state is `{ prompt, command }`), `runCli(argv, { env?, cadenceDir?, cwd?, fetchImpl?, stdout?, stderr? })`; `@cadence/mobile` — `MobileSocket` opts `{ relayUrl, roomId, token, sessionKey, WebSocketImpl?, onEvent, onGap, onClosed, onFatal? }`, reducer `reduceSession` with `GAP`/`EVENT` actions, `initialSessionState`.
+- Fail fast: missing `CADERO_GITHUB_CLIENT_ID` blocks `cadero-cli login` with a clear error.
+- Existing interfaces (exact names, Plans 1-3): `@cadero/protocol` — `WireEventSchema`, `WireEvent`, `encryptEnvelope`, `decryptEnvelope`, `EnvelopeError`, `generateSessionKey`, `exportSessionKey`, `importSessionKey`, `parsePairingPayload`; `@cadero/relay` — `createServer({ redisUrl, verifyUser?, oauth? })`, `createRoomStore(redisUrl)`, `createVerifyUser(redisUrl)` (callable with `.disconnect()`), `runMain({ env? })` (port default 8787), stream close codes 4401/4404; `@cadero/cli` — `CaderoSocket` opts `{ relayUrl, roomId, token, sessionKey, sessionId, onClose?, onFatal? }`, `AgentSession` opts `{ agent, command, args?, cwd, socket, sessionId, config, autoApproveText?, onError? }` (pending state is `{ prompt, command }`), `runCli(argv, { env?, caderoDir?, cwd?, fetchImpl?, stdout?, stderr? })`; `@cadero/mobile` — `MobileSocket` opts `{ relayUrl, roomId, token, sessionKey, WebSocketImpl?, onEvent, onGap, onClosed, onFatal? }`, reducer `reduceSession` with `GAP`/`EVENT` actions, `initialSessionState`.
 
 ---
 
@@ -57,7 +57,7 @@ it("accepts a HEARTBEAT event and rejects one with a payload", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/protocol`
+Run: `npm test --workspace=@cadero/protocol`
 Expected: FAIL — HEARTBEAT not in the union (second assertion may pass vacuously until the literal exists).
 
 - [ ] **Step 3: Write minimal implementation**
@@ -77,7 +77,7 @@ And extend the union array with `HeartbeatSchema`.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm run build --workspace=@cadence/protocol && npm test --workspace=@cadence/protocol && npm run typecheck`
+Run: `npm run build --workspace=@cadero/protocol && npm test --workspace=@cadero/protocol && npm run typecheck`
 Expected: protocol suite green, typecheck clean (the union widening is additive; existing discriminated-union consumers still compile).
 
 - [ ] **Step 5: Commit**
@@ -181,7 +181,7 @@ Match the file's local conventions for imports (it already has `redisUrl` const 
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npm test --workspace=@cadence/relay`
+Run: `npm test --workspace=@cadero/relay`
 Expected: FAIL — pair/oauth return 500 (unhandled), close-code tests likely already pass if Plan 1's behavior holds (they pin existing behavior; if they fail, the relay regressed and the fix is in the route, not the test).
 
 - [ ] **Step 3: Write minimal implementation**
@@ -207,7 +207,7 @@ return { room_id };
 ```ts
 // /v1/oauth/login: wrap the state SET
 try {
-  await oauthRedis.set(`cadence:oauth:state:${state}`, "1", "EX", OAUTH_STATE_TTL_SECONDS);
+  await oauthRedis.set(`cadero:oauth:state:${state}`, "1", "EX", OAUTH_STATE_TTL_SECONDS);
 } catch {
   return reply.code(503).send({ error: "relay unavailable" });
 }
@@ -218,7 +218,7 @@ try {
 // mapping Redis failures to 503 while keeping auth failures at 401
 let login: string;
 try {
-  const deleted = await oauthRedis.del(`cadence:oauth:state:${state}`);
+  const deleted = await oauthRedis.del(`cadero:oauth:state:${state}`);
   if (deleted !== 1) {
     return reply.code(400).send({ error: "invalid state" });
   }
@@ -235,7 +235,7 @@ To distinguish precisely, check the error type: wrap only the `del` call in its 
 ```ts
 let deleted: number;
 try {
-  deleted = await oauthRedis.del(`cadence:oauth:state:${state}`);
+  deleted = await oauthRedis.del(`cadero:oauth:state:${state}`);
 } catch {
   return reply.code(503).send({ error: "relay unavailable" });
 }
@@ -246,7 +246,7 @@ if (deleted !== 1) {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm run build --workspace=@cadence/relay && npm test --workspace=@cadence/relay && npm run typecheck`
+Run: `npm run build --workspace=@cadero/relay && npm test --workspace=@cadero/relay && npm run typecheck`
 Expected: all relay suites green, typecheck clean.
 
 - [ ] **Step 5: Commit**
@@ -264,7 +264,7 @@ git commit -m "feat(relay): shape redis-outage responses and pin close codes"
 - Test: `packages/cli/tests/session.test.ts` (append timeout cases)
 
 **Interfaces:**
-- Consumes: `AgentSession` (pending `{ prompt, command }`), `socket.send`, `close` on the CadenceSocket via the injected socket object (main.ts wires shutdown).
+- Consumes: `AgentSession` (pending `{ prompt, command }`), `socket.send`, `close` on the CaderoSocket via the injected socket object (main.ts wires shutdown).
 - Produces: `export const INTERCEPT_TIMEOUT_MS = 900000;` and `AgentSessionOptions.interceptTimeoutMs?: number` (default `INTERCEPT_TIMEOUT_MS`). On timeout with an intercept still pending: write `"\u001b"` into the PTY (deny), send `TERMINAL_DATA` with chunk `"\n[intercept timed out after 900s; command denied — session ending]\n"` (the seconds value is `interceptTimeoutMs / 1000`, rendered from the actual configured value), then call the injected `socket`'s `close()` **if present** (the FakeSocket in tests lacks it — guard with `typeof this.opts.socket.close === "function"`) and stop the session. The timer is cleared on resolve (APPROVE/DENY) and on stop().
 
 - [ ] **Step 1: Write the failing test**
@@ -273,7 +273,7 @@ Append to `packages/cli/tests/session.test.ts`:
 
 ```ts
 it("denies and tears down when the intercept times out", async () => {
-  dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+  dir = mkdtempSync(join(tmpdir(), "cadero-sess-"));
   const agent = stubAgent(
     dir,
     'printf "rm -rf ./dist\\nDo you want to proceed? [y/N]"; sleep 5; printf " never"',
@@ -304,7 +304,7 @@ it("denies and tears down when the intercept times out", async () => {
 }, 10000);
 
 it("does not time out an intercept that is resolved in time", async () => {
-  dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+  dir = mkdtempSync(join(tmpdir(), "cadero-sess-"));
   const agent = stubAgent(
     dir,
     'printf "rm -rf ./dist\\nDo you want to proceed? [y/N]"; read -n 1; printf " continued"',
@@ -337,7 +337,7 @@ Add `import { vi } from "vitest"` to the file's existing vitest import if not pr
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/cli`
+Run: `npm test --workspace=@cadero/cli`
 Expected: FAIL — timeout never fires (agent keeps waiting; first test times out at its own 10s guard or fails the close assertion).
 
 - [ ] **Step 3: Write minimal implementation**
@@ -388,16 +388,16 @@ Wire it: call `this.armInterceptTimeout()` right after setting `this.pending = h
 In `packages/cli/src/main.ts`, pass `interceptTimeoutMs` from an optional env override so operators can shorten it without a rebuild — but default is the spec constant:
 
 ```ts
-const interceptTimeoutRaw = env.CADENCE_INTERCEPT_TIMEOUT_MS;
+const interceptTimeoutRaw = env.CADERO_INTERCEPT_TIMEOUT_MS;
 const interceptTimeoutMs = interceptTimeoutRaw ? Number(interceptTimeoutRaw) : undefined;
 // AgentSession opts: interceptTimeoutMs: Number.isFinite(interceptTimeoutMs) ? interceptTimeoutMs : undefined,
 ```
 
-If `CADENCE_INTERCEPT_TIMEOUT_MS` is set but not a positive number, fail loudly at parse time: `err("CADENCE_INTERCEPT_TIMEOUT_MS must be a positive integer (milliseconds)")` + exit 1.
+If `CADERO_INTERCEPT_TIMEOUT_MS` is set but not a positive number, fail loudly at parse time: `err("CADERO_INTERCEPT_TIMEOUT_MS must be a positive integer (milliseconds)")` + exit 1.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm test --workspace=@cadence/cli && npm run typecheck`
+Run: `npm test --workspace=@cadero/cli && npm run typecheck`
 Expected: full cli suite green including the two new tests, typecheck clean.
 
 - [ ] **Step 5: Commit**
@@ -414,7 +414,7 @@ git commit -m "feat(cli): add 15-minute intercept timeout with deny teardown"
 - Test: `packages/cli/tests/socket.test.ts` (append heartbeat cases)
 
 **Interfaces:**
-- Consumes: `HeartbeatSchema`/`HEARTBEAT` event (Task 1), `CadenceSocket` internals.
+- Consumes: `HeartbeatSchema`/`HEARTBEAT` event (Task 1), `CaderoSocket` internals.
 - Produces: exported `HEARTBEAT_INTERVAL_MS = 20000;` and `STALE_AFTER_MS = 45000;`. Behavior: while the socket is open, a timer sends a `HEARTBEAT` event (meta.session_id = opts.sessionId) every `HEARTBEAT_INTERVAL_MS`; every received frame (any event) updates `lastReceivedAt = Date.now()`; a second timer (every 5s) force-closes the ws when `Date.now() - lastReceivedAt > STALE_AFTER_MS` (the close triggers the existing reconnect path — and `onGap`-equivalent behavior on the mobile twin). Timers are created on open, cleared on close (user or otherwise). Heartbeat sends go through the existing `send` (encrypted, stamped).
 
 - [ ] **Step 1: Write the failing test**
@@ -433,7 +433,7 @@ it("sends heartbeats and reconnects when the peer goes silent", async () => {
   const relayUrl = `http://127.0.0.1:${port}`;
 
   const sessionKey = await generateSessionKey();
-  const cli = new CadenceSocket({
+  const cli = new CaderoSocket({
     relayUrl,
     roomId,
     token: "t",
@@ -455,7 +455,7 @@ it("sends heartbeats and reconnects when the peer goes silent", async () => {
   const app2 = createServer({ redisUrl, verifyUser: async () => "cli" });
   await app2.listen({ port });
   const back = onceEvent(cli);
-  const phone = new CadenceSocket({
+  const phone = new CaderoSocket({
     relayUrl,
     roomId,
     token: "t",
@@ -485,7 +485,7 @@ Note for the implementer: this test pins (a) heartbeats traverse the stack as no
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/cli`
+Run: `npm test --workspace=@cadero/cli`
 Expected: FAIL — `HEARTBEAT` send may work (Task 1 widened the schema) but the timers don't exist; the outage-survival leg passes only if the socket already handles closed-socket send throws (it does, per Plan 2 F1). The binding new behavior is the timer wiring; the test failing on the heartbeat-arrival leg is acceptable evidence.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -496,7 +496,7 @@ In `packages/cli/src/socket.ts`:
 export const HEARTBEAT_INTERVAL_MS = 20000;
 export const STALE_AFTER_MS = 45000;
 
-// CadenceSocket gains private fields:
+// CaderoSocket gains private fields:
 //   private heartbeatTimer: ReturnType<typeof setInterval> | undefined;
 //   private staleTimer: ReturnType<typeof setInterval> | undefined;
 //   private lastReceivedAt = Date.now();
@@ -534,7 +534,7 @@ this.staleTimer = undefined;
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm test --workspace=@cadence/cli && npm run typecheck`
+Run: `npm test --workspace=@cadero/cli && npm run typecheck`
 Expected: full cli suite green, typecheck clean.
 
 - [ ] **Step 5: Commit**
@@ -637,7 +637,7 @@ it("exposes the gap marker constant", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npm test --workspace=@cadence/mobile`
+Run: `npm test --workspace=@cadero/mobile`
 Expected: FAIL — heartbeat timers don't exist; `gapped` never clears.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -662,7 +662,7 @@ if (event.event === "TERMINAL_DATA") {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm test --workspace=@cadence/mobile && npm run typecheck`
+Run: `npm test --workspace=@cadero/mobile && npm run typecheck`
 Expected: full mobile suite green, typecheck clean.
 
 - [ ] **Step 5: Commit**
@@ -681,31 +681,31 @@ git commit -m "feat(mobile): heartbeat, staleness detection, and gap-recovery se
 
 **Interfaces:**
 - Consumes: `runCli` RunOptions env.
-- Produces: `requestDeviceCode(fetchImpl, clientId: string)` and `pollForAccessToken(fetchImpl, deviceCode, opts, clientId: string)` — client id is now an explicit argument (the screaming constant is deleted). `cadence-cli login` requires `CADENCE_GITHUB_CLIENT_ID` in the environment: missing or empty → stderr `CADENCE_GITHUB_CLIENT_ID is not set; register a GitHub OAuth app and set it to enable login` → exit 1. (Self-host compose passes it through; the public-cloud deployment sets it in the environment of the npm-published CLI via the install channel — that is deployment configuration, not code.)
+- Produces: `requestDeviceCode(fetchImpl, clientId: string)` and `pollForAccessToken(fetchImpl, deviceCode, opts, clientId: string)` — client id is now an explicit argument (the screaming constant is deleted). `cadero-cli login` requires `CADERO_GITHUB_CLIENT_ID` in the environment: missing or empty → stderr `CADERO_GITHUB_CLIENT_ID is not set; register a GitHub OAuth app and set it to enable login` → exit 1. (Self-host compose passes it through; the public-cloud deployment sets it in the environment of the npm-published CLI via the install channel — that is deployment configuration, not code.)
 
 - [ ] **Step 1: Write the failing tests**
 
 In `packages/cli/tests/ghDevice.test.ts`, update every call: `requestDeviceCode(fetchImpl, "cid-test")` and `pollForAccessToken(fetchImpl, "dev123", { interval, expiresIn, sleep? }, "cid-test")`. In `packages/cli/tests/main.test.ts`, append:
 
 ```ts
-it("login without CADENCE_GITHUB_CLIENT_ID exits 1 with guidance", async () => {
-  dir = mkdtempSync(join(tmpdir(), "cadence-main-"));
+it("login without CADERO_GITHUB_CLIENT_ID exits 1 with guidance", async () => {
+  dir = mkdtempSync(join(tmpdir(), "cadero-main-"));
   const errs: string[] = [];
   const code = await runCli(["login"], {
-    cadenceDir: dir,
+    caderoDir: dir,
     env: {},
     stderr: (l) => errs.push(l),
   });
   expect(code).toBe(1);
-  expect(errs.join("\n")).toContain("CADENCE_GITHUB_CLIENT_ID");
+  expect(errs.join("\n")).toContain("CADERO_GITHUB_CLIENT_ID");
 });
 
-it("login uses CADENCE_GITHUB_CLIENT_ID from env", async () => {
-  dir = mkdtempSync(join(tmpdir(), "cadence-main-"));
+it("login uses CADERO_GITHUB_CLIENT_ID from env", async () => {
+  dir = mkdtempSync(join(tmpdir(), "cadero-main-"));
   const lines: string[] = [];
   const code = await runCli(["login"], {
-    cadenceDir: dir,
-    env: { CADENCE_GITHUB_CLIENT_ID: "cid-env" },
+    caderoDir: dir,
+    env: { CADERO_GITHUB_CLIENT_ID: "cid-env" },
     fetchImpl: fakeFetch({
       "https://github.com/login/device/code": {
         status: 200,
@@ -732,11 +732,11 @@ it("login uses CADENCE_GITHUB_CLIENT_ID from env", async () => {
 });
 ```
 
-(The existing happy-path login test must gain `env: { CADENCE_GITHUB_CLIENT_ID: "cid-test" }`.)
+(The existing happy-path login test must gain `env: { CADERO_GITHUB_CLIENT_ID: "cid-test" }`.)
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npm test --workspace=@cadence/cli`
+Run: `npm test --workspace=@cadero/cli`
 Expected: FAIL — signature mismatch on updated calls; env guard missing.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -744,9 +744,9 @@ Expected: FAIL — signature mismatch on updated calls; env guard missing.
 In `packages/cli/src/ghDevice.ts`: delete the `CLIENT_ID` constant; both exported functions take `clientId: string` as their last parameter and send it in the request bodies (`client_id: clientId`). In `packages/cli/src/main.ts`, the `login` branch:
 
 ```ts
-const clientId = env.CADENCE_GITHUB_CLIENT_ID;
+const clientId = env.CADERO_GITHUB_CLIENT_ID;
 if (!clientId) {
-  err("CADENCE_GITHUB_CLIENT_ID is not set; register a GitHub OAuth app and set it to enable login");
+  err("CADERO_GITHUB_CLIENT_ID is not set; register a GitHub OAuth app and set it to enable login");
   return 1;
 }
 const device = await requestDeviceCode(fetchImpl, clientId);
@@ -759,14 +759,14 @@ const token = await pollForAccessToken(fetchImpl, device.device_code, {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm test --workspace=@cadence/cli && npm run typecheck`
+Run: `npm test --workspace=@cadero/cli && npm run typecheck`
 Expected: full cli suite green, typecheck clean.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add packages/cli/src/ghDevice.ts packages/cli/src/main.ts packages/cli/tests
-git commit -m "feat(cli): configure github client id via CADENCE_GITHUB_CLIENT_ID"
+git commit -m "feat(cli): configure github client id via CADERO_GITHUB_CLIENT_ID"
 ```
 
 ### Task 7: Relay OAuth env wiring + Dockerfiles + docker-compose + nginx
@@ -782,7 +782,7 @@ git commit -m "feat(cli): configure github client id via CADENCE_GITHUB_CLIENT_I
 
 **Interfaces:**
 - Consumes: `createServer({ redisUrl, verifyUser?, oauth? })` (Plan 3), `runMain({ env? })` (Plan 1).
-- Produces: `runMain` gains optional `fetchImpl?: typeof fetch` and reads the OAuth quartet from env — `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET`, `CADENCE_RELAY_PUBLIC_URL`, `CADENCE_APP_URL`. When all four are set, `oauth` is passed to `createServer` (portal live); when some-but-not-all are set, relay startup fails loudly: `oauth env incomplete: set all of GITHUB_OAUTH_CLIENT_ID, GITHUB_OAUTH_CLIENT_SECRET, CADENCE_RELAY_PUBLIC_URL, CADENCE_APP_URL (or none to disable the portal)` with a non-zero exit. When none are set, the portal stays 503 (Plan 3 behavior). The compose stack then works: redis + relay + nginx serving the mobile static export on 8080 and proxying `/v1/*` (WebSocket upgrade) to the relay; operators set the quartet plus `CADENCE_RELAY_URL=https://my-private-server.com` on their CLI/phone.
+- Produces: `runMain` gains optional `fetchImpl?: typeof fetch` and reads the OAuth quartet from env — `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET`, `CADERO_RELAY_PUBLIC_URL`, `CADERO_APP_URL`. When all four are set, `oauth` is passed to `createServer` (portal live); when some-but-not-all are set, relay startup fails loudly: `oauth env incomplete: set all of GITHUB_OAUTH_CLIENT_ID, GITHUB_OAUTH_CLIENT_SECRET, CADERO_RELAY_PUBLIC_URL, CADERO_APP_URL (or none to disable the portal)` with a non-zero exit. When none are set, the portal stays 503 (Plan 3 behavior). The compose stack then works: redis + relay + nginx serving the mobile static export on 8080 and proxying `/v1/*` (WebSocket upgrade) to the relay; operators set the quartet plus `CADERO_RELAY_URL=https://my-private-server.com` on their CLI/phone.
 
 `packages/relay/Dockerfile` (all four package manifests are copied so npm resolves the workspace graph; the install is filtered to protocol+relay so node-pty is never built in this image):
 
@@ -794,11 +794,11 @@ COPY packages/protocol/package.json packages/protocol/package.json
 COPY packages/relay/package.json packages/relay/package.json
 COPY packages/cli/package.json packages/cli/package.json
 COPY packages/mobile/package.json packages/mobile/package.json
-RUN npm ci --workspace=@cadence/protocol --workspace=@cadence/relay
+RUN npm ci --workspace=@cadero/protocol --workspace=@cadero/relay
 COPY tsconfig.base.json ./
 COPY packages/protocol packages/protocol
 COPY packages/relay packages/relay
-RUN npm run build --workspace=@cadence/protocol && npm run build --workspace=@cadence/relay
+RUN npm run build --workspace=@cadero/protocol && npm run build --workspace=@cadero/relay
 
 FROM node:22-alpine
 WORKDIR /app
@@ -822,11 +822,11 @@ COPY packages/protocol/package.json packages/protocol/package.json
 COPY packages/relay/package.json packages/relay/package.json
 COPY packages/cli/package.json packages/cli/package.json
 COPY packages/mobile/package.json packages/mobile/package.json
-RUN npm ci --workspace=@cadence/protocol --workspace=@cadence/mobile
+RUN npm ci --workspace=@cadero/protocol --workspace=@cadero/mobile
 COPY tsconfig.base.json ./
 COPY packages/protocol packages/protocol
 COPY packages/mobile packages/mobile
-RUN npm run build --workspace=@cadence/protocol && npm run build --workspace=@cadence/mobile
+RUN npm run build --workspace=@cadero/protocol && npm run build --workspace=@cadero/mobile
 
 FROM nginx:1.27-alpine
 COPY packages/mobile/nginx.conf /etc/nginx/conf.d/default.conf
@@ -874,8 +874,8 @@ services:
       PORT: "8787"
       GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID:-}
       GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
-      CADENCE_RELAY_PUBLIC_URL: ${CADENCE_RELAY_PUBLIC_URL:-}
-      CADENCE_APP_URL: ${CADENCE_APP_URL:-}
+      CADERO_RELAY_PUBLIC_URL: ${CADERO_RELAY_PUBLIC_URL:-}
+      CADERO_APP_URL: ${CADERO_APP_URL:-}
     depends_on:
       - redis
 
@@ -928,8 +928,8 @@ describe("oauth env wiring", () => {
         PORT: "0",
         GITHUB_OAUTH_CLIENT_ID: "cid",
         GITHUB_OAUTH_CLIENT_SECRET: "sec",
-        CADENCE_RELAY_PUBLIC_URL: "https://relay.example.com",
-        CADENCE_APP_URL: "https://app.example.com",
+        CADERO_RELAY_PUBLIC_URL: "https://relay.example.com",
+        CADERO_APP_URL: "https://app.example.com",
       },
       fetchImpl,
     });
@@ -944,7 +944,7 @@ Note: `runMain` binds to port 0 here — extend it to honor `PORT=0` (it already
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/relay`
+Run: `npm test --workspace=@cadero/relay`
 Expected: FAIL — runMain has no oauth wiring.
 
 - [ ] **Step 3: Write the implementation**
@@ -955,8 +955,8 @@ In `packages/relay/src/main.ts`:
 const oauthValues = {
   clientId: env.GITHUB_OAUTH_CLIENT_ID,
   clientSecret: env.GITHUB_OAUTH_CLIENT_SECRET,
-  publicUrl: env.CADENCE_RELAY_PUBLIC_URL,
-  appUrl: env.CADENCE_APP_URL,
+  publicUrl: env.CADERO_RELAY_PUBLIC_URL,
+  appUrl: env.CADERO_APP_URL,
 };
 const setCount = Object.values(oauthValues).filter((v) => v !== undefined && v !== "").length;
 const oauth =
@@ -972,7 +972,7 @@ const oauth =
         }
       : (() => {
           throw new Error(
-            "oauth env incomplete: set all of GITHUB_OAUTH_CLIENT_ID, GITHUB_OAUTH_CLIENT_SECRET, CADENCE_RELAY_PUBLIC_URL, CADENCE_APP_URL (or none to disable the portal)",
+            "oauth env incomplete: set all of GITHUB_OAUTH_CLIENT_ID, GITHUB_OAUTH_CLIENT_SECRET, CADERO_RELAY_PUBLIC_URL, CADERO_APP_URL (or none to disable the portal)",
           );
         })();
 
@@ -984,7 +984,7 @@ const app = createServer({ redisUrl, oauth });
 - [ ] **Step 4: Write the four infra files** (Dockerfiles, nginx.conf, docker-compose.yml, .dockerignore — contents above).
 - [ ] **Step 5: Run tests and verify the stack boots**
 
-Run: `npm run build --workspace=@cadence/relay && npm test --workspace=@cadence/relay && npm run typecheck`
+Run: `npm run build --workspace=@cadero/relay && npm test --workspace=@cadero/relay && npm run typecheck`
 Expected: relay suites green, typecheck clean.
 
 Then: `docker compose build 2>&1 | tail -5 && docker compose up -d && sleep 3 && curl -s http://localhost:8080/health && curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/ && docker compose down`
@@ -1013,10 +1013,10 @@ git commit -m "feat: wire oauth env into relay startup and add compose stack"
 Setup design (all in `global-setup.ts`, run once per Playwright run):
 1. Start a static server for `packages/mobile/out` on `127.0.0.1:4173` (`static-server.mjs`, ~40 lines, SPA fallback to index.html).
 2. Start the relay in-process via `runMain({ env: { REDIS_URL: "redis://127.0.0.1:6379", PORT: "8790" } })`.
-3. Seed a session token: `redis.set("cadence:session:cadence_e2e...", "e2e-user", "EX", 3600)` with `cadence_` + 32 hex.
+3. Seed a session token: `redis.set("cadero:session:cadero_e2e...", "e2e-user", "EX", 3600)` with `cadero_` + 32 hex.
 4. Create a temp dir with an executable `claude` stub script on PATH (prints `STUB-READY`; reads a line; if the line contains `danger` prints `rm -rf ./dist\nDo you want to proceed? [y/N]` then reads one char and prints `APPROVED-RESULT` on y / `DENIED-RESULT` otherwise; otherwise echoes `ECHO:<line>`).
-5. Spawn `node packages/cli/dist/main.js start --agent claude --relay-url http://127.0.0.1:8790` with cwd = a temp project dir (empty), PATH prepended with the stub dir, and `CADENCE_GITHUB_CLIENT_ID=unused` (start doesn't need it, but credentials do — write a credentials.json with `{"githubToken":"cadence_e2e..."}` in `CADENCE_HOME=~/.cadence`-equivalent temp dir via the CLI's own env: runCli uses `cadenceDir` — the spawned CLI uses the real homedir default, so set `HOME=<tempdir>` for the spawn).
-6. Capture stdout until the pairing payload line (`/cadence:\/\/pair\?v=1&\S+/` — the CLI prints it raw when stdout is not a TTY).
+5. Spawn `node packages/cli/dist/main.js start --agent claude --relay-url http://127.0.0.1:8790` with cwd = a temp project dir (empty), PATH prepended with the stub dir, and `CADERO_GITHUB_CLIENT_ID=unused` (start doesn't need it, but credentials do — write a credentials.json with `{"githubToken":"cadero_e2e..."}` in `CADERO_HOME=~/.cadero`-equivalent temp dir via the CLI's own env: runCli uses `caderoDir` — the spawned CLI uses the real homedir default, so set `HOME=<tempdir>` for the spawn).
+6. Capture stdout until the pairing payload line (`/cadero:\/\/pair\?v=1&\S+/` — the CLI prints it raw when stdout is not a TTY).
 7. Teardown: kill CLI, close relay app, close static server, delete seeded token.
 
 `static-server.mjs`:
@@ -1067,8 +1067,8 @@ export default defineConfig({
 ```ts
 import { expect, test } from "@playwright/test";
 
-const E2E_TOKEN = process.env.CADENCE_E2E_TOKEN as string;
-const PAYLOAD = process.env.CADENCE_E2E_PAYLOAD as string;
+const E2E_TOKEN = process.env.CADERO_E2E_TOKEN as string;
+const PAYLOAD = process.env.CADERO_E2E_PAYLOAD as string;
 
 test("pair, watch terminal, prompt the agent", async ({ page }) => {
   await page.goto(`/?token-not-used#token=${E2E_TOKEN}`);
@@ -1121,7 +1121,7 @@ Run `npm install` after adding `@playwright/test` to mobile devDeps, then `npx p
 
 - [ ] **Step 2: Verify the suite**
 
-Run: `npm run build --workspace=@cadence/cli && npm run build --workspace=@cadence/mobile && npm run e2e --workspace=@cadence/mobile`
+Run: `npm run build --workspace=@cadero/cli && npm run build --workspace=@cadero/mobile && npm run e2e --workspace=@cadero/mobile`
 Expected: both tests pass. If the terminal-text assertion needs a different selector (xterm renders into `.xterm-rows` divs with per-character spans — text may be split across spans), relax to a page-level `getByText` with `{ exact: false }` or assert on `page.content()` containing the marker; keep the assertions on user-visible strings (STUB-READY, ECHO:say hi, APPROVED-RESULT).
 
 - [ ] **Step 3: Commit**
@@ -1144,10 +1144,10 @@ git commit -m "feat(mobile): full-loop browser e2e against the real stack"
 README content (write exactly this structure, filling command details from the codebase):
 
 ```markdown
-# Cadence
+# Cadero
 
 Control your local AI coding agents (Claude Code, OpenCode) from your phone.
-Cadence runs a daemon next to your agents, routes encrypted frames through a
+Cadero runs a daemon next to your agents, routes encrypted frames through a
 thin relay, and renders the live terminal in a mobile PWA with approve/deny
 controls for every action the agent wants to take.
 
@@ -1159,37 +1159,37 @@ controls for every action the agent wants to take.
 - Local final veto: the daemon never executes shell commands from the
   network. Your phone sends high-level intents; the daemon validates
   everything and only ever feeds your existing agent's stdin.
-- Optional safelist: `.cadencerc` (`{"safeCommands": ["npm test", ...]}`)
+- Optional safelist: `.caderorc` (`{"safeCommands": ["npm test", ...]}`)
   auto-approves listed commands without bothering your phone.
 
 ## Quickstart (self-host)
 
 1. `docker compose up -d` — starts Redis, the relay, and the PWA (port 8080).
 2. Set the OAuth env vars for the relay (see Configuration) and restart it.
-3. On your dev machine: `npm install -g @cadence/cli`
-4. `cadence-cli login` (requires `CADENCE_GITHUB_CLIENT_ID` in your env)
-5. `cadence-cli start --relay-url http://your-server:8080`
+3. On your dev machine: `npm install -g @cadero/cli`
+4. `cadero-cli login` (requires `CADERO_GITHUB_CLIENT_ID` in your env)
+5. `cadero-cli start --relay-url http://your-server:8080`
 6. Scan the terminal QR with your phone.
 
 ## Configuration
 
 | Variable | Where | Purpose |
 |---|---|---|
-| `CADENCE_GITHUB_CLIENT_ID` | CLI env | GitHub OAuth app client id for `cadence-cli login` |
-| `CADENCE_RELAY_URL` | CLI flag/env | Relay base URL (default: required at start) |
-| `CADENCE_INTERCEPT_TIMEOUT_MS` | CLI env | Intercept timeout override (default 900000 = 15 min) |
+| `CADERO_GITHUB_CLIENT_ID` | CLI env | GitHub OAuth app client id for `cadero-cli login` |
+| `CADERO_RELAY_URL` | CLI flag/env | Relay base URL (default: required at start) |
+| `CADERO_INTERCEPT_TIMEOUT_MS` | CLI env | Intercept timeout override (default 900000 = 15 min) |
 | `REDIS_URL` | relay env | Redis connection string (compose sets it) |
 | `PORT` | relay env | Relay listen port (default 8787) |
 | `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` | relay env | OAuth portal (503 when unset) |
-| `CADENCE_RELAY_PUBLIC_URL` | relay env | Public base URL for OAuth redirects |
-| `CADENCE_APP_URL` | relay env | Where the OAuth callback redirects the browser |
+| `CADERO_RELAY_PUBLIC_URL` | relay env | Public base URL for OAuth redirects |
+| `CADERO_APP_URL` | relay env | Where the OAuth callback redirects the browser |
 
 ## Development
 
 ```
 npm install
 npm run build && npm test && npm run typecheck
-npm run e2e --workspace=@cadence/mobile   # full-loop browser test
+npm run e2e --workspace=@cadero/mobile   # full-loop browser test
 ```
 
 ## License
@@ -1197,7 +1197,7 @@ npm run e2e --workspace=@cadence/mobile   # full-loop browser test
 MIT — see [LICENSE](LICENSE).
 ```
 
-`LICENSE`: the standard MIT text with `Copyright (c) 2026 Cadence contributors`.
+`LICENSE`: the standard MIT text with `Copyright (c) 2026 Cadero contributors`.
 
 - [ ] **Step 1: Write README.md and LICENSE**
 - [ ] **Step 2: Commit**
@@ -1218,11 +1218,11 @@ git commit -m "docs: add quickstart readme and MIT license"
 
 - [ ] **Step 1: Decide the e2e wiring**
 
-The Playwright suite spawns real processes and needs Docker-free prerequisites (Redis running). Keep it opt-in: root `package.json` gains `"e2e": "npm run e2e --workspace=@cadence/mobile"` and the README development section already lists it as an explicit command. Do NOT chain e2e into `npm test` (CI systems without browsers/Redis would fail).
+The Playwright suite spawns real processes and needs Docker-free prerequisites (Redis running). Keep it opt-in: root `package.json` gains `"e2e": "npm run e2e --workspace=@cadero/mobile"` and the README development section already lists it as an explicit command. Do NOT chain e2e into `npm test` (CI systems without browsers/Redis would fail).
 
 - [ ] **Step 2: Run the full gate**
 
-Run: `npm run build && npm test && npm run typecheck && npm run e2e --workspace=@cadence/mobile`
+Run: `npm run build && npm test && npm run typecheck && npm run e2e --workspace=@cadero/mobile`
 Expected: everything green — build (all four packages), 87 unit tests, typecheck (root + mobile programs), and both E2E tests passing.
 
 - [ ] **Step 3: Commit**

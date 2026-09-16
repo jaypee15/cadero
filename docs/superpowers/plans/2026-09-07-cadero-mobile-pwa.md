@@ -1,10 +1,10 @@
-# Cadence Mobile PWA Implementation Plan
+# Cadero Mobile PWA Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build `@cadence/mobile` — the mobile PWA that scans the QR, decrypts the terminal stream in-memory, sends prompts, and drives the approve/deny overlay — plus the relay OAuth portal it authenticates through and the protocol changes it needs.
+**Goal:** Build `@cadero/mobile` — the mobile PWA that scans the QR, decrypts the terminal stream in-memory, sends prompts, and drives the approve/deny overlay — plus the relay OAuth portal it authenticates through and the protocol changes it needs.
 
-**Architecture:** Three preparatory changes unblock the browser tier: `@cadence/protocol` goes isomorphic (btoa/atob replaces Buffer; `parsePairingPayload` moves there since `@cadence/cli` pulls node deps), and the relay gains a GitHub OAuth portal issuing short-lived session tokens because GitHub's device/code endpoints are CORS-blocked from browsers. The PWA itself is a statically exported Next.js app: camera QR scan (jsQR), a `MobileSocket` over the browser-native WebSocket (injectable for tests), an xterm.js canvas, a prompt input, and a blocking intercept overlay — all session state lives in memory only.
+**Architecture:** Three preparatory changes unblock the browser tier: `@cadero/protocol` goes isomorphic (btoa/atob replaces Buffer; `parsePairingPayload` moves there since `@cadero/cli` pulls node deps), and the relay gains a GitHub OAuth portal issuing short-lived session tokens because GitHub's device/code endpoints are CORS-blocked from browsers. The PWA itself is a statically exported Next.js app: camera QR scan (jsQR), a `MobileSocket` over the browser-native WebSocket (injectable for tests), an xterm.js canvas, a prompt input, and a blocking intercept overlay — all session state lives in memory only.
 
 **Tech Stack:** TypeScript strict, Node 20+, npm workspaces, Next.js (App Router, `output: "export"`), Tailwind CSS, xterm + @xterm/addon-fit, jsQR, vitest. Tests run in Node with injected `fetch`/`WebSocket`; real Redis + real relay for contract tests.
 
@@ -12,7 +12,7 @@
 
 - Node 20 or newer, no exceptions.
 - TypeScript strict mode in every package, `tsc --noEmit` must pass (root `npm run typecheck`).
-- npm workspaces, package names `@cadence/protocol`, `@cadence/relay`, `@cadence/cli`, `@cadence/mobile`.
+- npm workspaces, package names `@cadero/protocol`, `@cadero/relay`, `@cadero/cli`, `@cadero/mobile`.
 - Real Redis required; no in-memory fallbacks in implementation or tests.
 - Zero-knowledge: the session key lives only in browser memory (`window.crypto.subtle` semantics); never written to localStorage, IndexedDB, cookies, or logs; the OAuth session token likewise memory-only.
 - The relay never sees plaintext or AES keys; it routes on the `room_id` header only and never logs frame bodies.
@@ -20,7 +20,7 @@
 - Fail fast: missing OAuth env vars, unreachable relay, bad QR payload, or wrong key all surface explicit errors; no dev bypasses.
 - Repo conventions: vitest per package, tsconfig extends ../../tsconfig.base.json, named ioredis import where needed, tests excluded from build include.
 - Deferred to Plan 4 (compose + e2e, per the Plan 2 final review tickets): 4401/4404/onFatal/DENY relay contract tests, the 15-minute intercept timeout (spec §6, CLI/relay-side; mobile already renders the resulting closed state), and a WS heartbeat. Mobile displays whatever teardown notices arrive.
-- Existing interfaces available (Plans 1-2, exact names): `@cadence/protocol` — `WireEventSchema`, `WireEvent`, `EncryptedEnvelope`, `encryptEnvelope(roomId, key, event)`, `decryptEnvelope(key, envelope)` (throws `EnvelopeError`, reasons `"malformed_envelope" | "decryption_failed" | "invalid_event"`), `generateSessionKey()`, `importSessionKey(raw)`, `exportSessionKey(key)`, `EnvelopeError`; `@cadence/cli` — `parsePairingPayload(payload)` → `{ relay, room, key }` (Task 1 of this plan moves it); `@cadence/relay` — `createServer({ redisUrl, verifyUser? })`, `verifyGitHubUser(token, fetchImpl?)`, `createRoomStore(redisUrl)`, `runMain({ env? })`; stream endpoint `GET /v1/stream?room_id=…&token=…` with close codes 4401/4404; no-echo origin-id semantics (a socket never receives its own frames).
+- Existing interfaces available (Plans 1-2, exact names): `@cadero/protocol` — `WireEventSchema`, `WireEvent`, `EncryptedEnvelope`, `encryptEnvelope(roomId, key, event)`, `decryptEnvelope(key, envelope)` (throws `EnvelopeError`, reasons `"malformed_envelope" | "decryption_failed" | "invalid_event"`), `generateSessionKey()`, `importSessionKey(raw)`, `exportSessionKey(key)`, `EnvelopeError`; `@cadero/cli` — `parsePairingPayload(payload)` → `{ relay, room, key }` (Task 1 of this plan moves it); `@cadero/relay` — `createServer({ redisUrl, verifyUser? })`, `verifyGitHubUser(token, fetchImpl?)`, `createRoomStore(redisUrl)`, `runMain({ env? })`; stream endpoint `GET /v1/stream?room_id=…&token=…` with close codes 4401/4404; no-echo origin-id semantics (a socket never receives its own frames).
 
 ---
 
@@ -36,7 +36,7 @@
 
 **Interfaces:**
 - Consumes: existing `exportSessionKey`/`importSessionKey` behavior (unchanged), CLI's `parsePairingPayload` semantics (must match byte-for-byte).
-- Produces (consumed by Tasks 4, 5, 9 and the mobile browser bundle): `parsePairingPayload(payload: string): ParsedPairing` and `type ParsedPairing = { relay: string; room: string; key: string }` from `@cadence/protocol`, with key validation: `/^[A-Za-z0-9_-]{43}$/` base64url check that throws `"not a cadence pairing payload"` on mismatch (Plan 2 ticket). CLI keeps exporting the same names (re-exported) so `packages/cli/tests/pairing.test.ts` passes untouched. Protocol has zero Node-only globals afterward (Buffer gone from envelope.ts and keys.ts).
+- Produces (consumed by Tasks 4, 5, 9 and the mobile browser bundle): `parsePairingPayload(payload: string): ParsedPairing` and `type ParsedPairing = { relay: string; room: string; key: string }` from `@cadero/protocol`, with key validation: `/^[A-Za-z0-9_-]{43}$/` base64url check that throws `"not a cadero pairing payload"` on mismatch (Plan 2 ticket). CLI keeps exporting the same names (re-exported) so `packages/cli/tests/pairing.test.ts` passes untouched. Protocol has zero Node-only globals afterward (Buffer gone from envelope.ts and keys.ts).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -48,7 +48,7 @@ import { generateSessionKey, exportSessionKey, parsePairingPayload } from "../sr
 describe("parsePairingPayload (protocol)", () => {
   it("parses a payload built from a real session key", async () => {
     const key = await exportSessionKey(await generateSessionKey());
-    const payload = `cadence://pair?v=1&relay=${encodeURIComponent("https://relay.example.com")}&room=${encodeURIComponent("room_abc123def4567890")}&key=${key}`;
+    const payload = `cadero://pair?v=1&relay=${encodeURIComponent("https://relay.example.com")}&room=${encodeURIComponent("room_abc123def4567890")}&key=${key}`;
     const parsed = parsePairingPayload(payload);
     expect(parsed).toEqual({
       relay: "https://relay.example.com",
@@ -59,16 +59,16 @@ describe("parsePairingPayload (protocol)", () => {
 
   it("rejects a key that is not 43-char base64url", async () => {
     const payload =
-      "cadence://pair?v=1&relay=https%3A%2F%2Fr.example.com&room=room_abc123def4567890&key=tooshort";
-    expect(() => parsePairingPayload(payload)).toThrow("not a cadence pairing payload");
+      "cadero://pair?v=1&relay=https%3A%2F%2Fr.example.com&room=room_abc123def4567890&key=tooshort";
+    expect(() => parsePairingPayload(payload)).toThrow("not a cadero pairing payload");
   });
 
   it("rejects wrong scheme, host, or version", () => {
     expect(() => parsePairingPayload("https://example.com")).toThrow(
-      "not a cadence pairing payload",
+      "not a cadero pairing payload",
     );
-    expect(() => parsePairingPayload("cadence://pair?v=2&relay=x&room=y&key=z")).toThrow(
-      "not a cadence pairing payload",
+    expect(() => parsePairingPayload("cadero://pair?v=2&relay=x&room=y&key=z")).toThrow(
+      "not a cadero pairing payload",
     );
   });
 });
@@ -113,7 +113,7 @@ describe("protocol is browser-compatible (no Buffer)", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npm test --workspace=@cadence/protocol`
+Run: `npm test --workspace=@cadero/protocol`
 Expected: FAIL — pairing module missing; Buffer still present.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -158,16 +158,16 @@ export function parsePairingPayload(payload: string): ParsedPairing {
   try {
     url = new URL(payload);
   } catch {
-    throw new Error("not a cadence pairing payload");
+    throw new Error("not a cadero pairing payload");
   }
-  if (url.protocol !== "cadence:" || url.hostname !== "pair" || url.searchParams.get("v") !== "1") {
-    throw new Error("not a cadence pairing payload");
+  if (url.protocol !== "cadero:" || url.hostname !== "pair" || url.searchParams.get("v") !== "1") {
+    throw new Error("not a cadero pairing payload");
   }
   const relay = url.searchParams.get("relay");
   const room = url.searchParams.get("room");
   const key = url.searchParams.get("key");
   if (!relay || !room || !key || !KEY_PATTERN.test(key)) {
-    throw new Error("not a cadence pairing payload");
+    throw new Error("not a cadero pairing payload");
   }
   return { relay, room, key };
 }
@@ -182,14 +182,14 @@ export * from "./pairing.js";
 In `packages/cli/src/pairing.ts`, delete the local `parsePairingPayload`/`ParsedPairing` and replace with:
 
 ```ts
-export { parsePairingPayload, type ParsedPairing } from "@cadence/protocol";
+export { parsePairingPayload, type ParsedPairing } from "@cadero/protocol";
 ```
 
 (Keep `pairSession` and the `importSessionKey` re-export exactly as they are.)
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm run build --workspace=@cadence/protocol && npm run build --workspace=@cadence/cli && npm test --workspace=@cadence/protocol && npm test --workspace=@cadence/cli && npm run typecheck`
+Run: `npm run build --workspace=@cadero/protocol && npm run build --workspace=@cadero/cli && npm test --workspace=@cadero/protocol && npm test --workspace=@cadero/cli && npm run typecheck`
 Expected: protocol + cli suites green (CLI's pairing tests still pass via re-export), typecheck clean.
 
 Back-compat note: base64url codecs still decode standard base64 (the `-_`→`+/` replacement is a no-op on strings without `-`/`_`), so frames encrypted with the Plan 1 format remain readable. New frames are written base64url (URL-safe, and the format the QR key already uses).
@@ -211,9 +211,9 @@ git commit -m "feat(protocol): browser-safe codecs and pairing payload parsing"
 **Interfaces:**
 - Consumes: `verifyGitHubUser(token, fetchImpl?)` (Plan 1), `createRoomStore` pattern (Redis conventions), `createServer(options)`.
 - Produces (consumed by Tasks 5 and 9): `ServerOptions` gains optional `oauth?: { clientId: string; clientSecret: string; publicUrl: string; appUrl: string; fetchImpl?: typeof fetch }` — when absent, the OAuth routes return 503 `{ error: "oauth not configured" }` and `verifyUser` stays GitHub-PAT-only (back-compat with Plan 1 tests). Routes:
-  - `GET /v1/oauth/login` → 302 to `https://github.com/login/oauth/authorize?client_id=<id>&redirect_uri=<publicUrl>/v1/oauth/callback&scope=read:user&state=<16hex>` with the state stored in Redis under `cadence:oauth:state:<state>` (TTL 600s, single-use).
-  - `GET /v1/oauth/callback?code&state` → validates+deletes the state (unknown/expired → 400 `{ error: "invalid state" }`), POSTs to `https://github.com/login/oauth/access_token` with `{ client_id, client_secret, code }`, verifies the login, mints `cadence_<32hex>` stored at `cadence:session:<token>` with TTL 43200 (12h), then 302 to `<appUrl>#token=<token>`.
-  - Default `verifyUser` becomes `createVerifyUser(redisUrl, fetchImpl?)`: checks `cadence:session:<token>` in Redis first (returns the stored login), falls back to `verifyGitHubUser`.
+  - `GET /v1/oauth/login` → 302 to `https://github.com/login/oauth/authorize?client_id=<id>&redirect_uri=<publicUrl>/v1/oauth/callback&scope=read:user&state=<16hex>` with the state stored in Redis under `cadero:oauth:state:<state>` (TTL 600s, single-use).
+  - `GET /v1/oauth/callback?code&state` → validates+deletes the state (unknown/expired → 400 `{ error: "invalid state" }`), POSTs to `https://github.com/login/oauth/access_token` with `{ client_id, client_secret, code }`, verifies the login, mints `cadero_<32hex>` stored at `cadero:session:<token>` with TTL 43200 (12h), then 302 to `<appUrl>#token=<token>`.
+  - Default `verifyUser` becomes `createVerifyUser(redisUrl, fetchImpl?)`: checks `cadero:session:<token>` in Redis first (returns the stored login), falls back to `verifyGitHubUser`.
 - `SESSION_TTL_SECONDS = 43200`, `OAUTH_STATE_TTL_SECONDS = 600` exported for tests.
 
 - [ ] **Step 1: Write the failing tests**
@@ -280,7 +280,7 @@ describe("OAuth portal", () => {
     const target = new URL(res.headers.location as string);
     expect(target.origin + target.pathname).toBe("https://app.example.com/");
     const token = target.hash.replace("#token=", "");
-    expect(token).toMatch(/^cadence_[0-9a-f]{32}$/);
+    expect(token).toMatch(/^cadero_[0-9a-f]{32}$/);
 
     // The session token authenticates the stream handshake like a PAT would.
     const verify = createVerifyUser(redisUrl, fakeGithubFetch());
@@ -319,7 +319,7 @@ Remove the stray `export type { WebSocket }` if linting objects; it exists only 
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npm test --workspace=@cadence/relay`
+Run: `npm test --workspace=@cadero/relay`
 Expected: FAIL — 404 on the new routes, missing `createVerifyUser`.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -334,7 +334,7 @@ export const SESSION_TTL_SECONDS = 43200;
 export const OAUTH_STATE_TTL_SECONDS = 600;
 
 function sessionKey(token: string): string {
-  return `cadence:session:${token}`;
+  return `cadero:session:${token}`;
 }
 
 export type { VerifyUser } from "./socket.js";
@@ -374,7 +374,7 @@ export async function exchangeOAuthCode(
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
-      "User-Agent": "cadence-relay",
+      "User-Agent": "cadero-relay",
     },
     body: JSON.stringify({
       client_id: config.clientId,
@@ -400,7 +400,7 @@ app.get("/v1/oauth/login", async (_request, reply) => {
     return reply.code(503).send({ error: "oauth not configured" });
   }
   const state = randomBytes(16).toString("hex");
-  await oauthRedis.set(`cadence:oauth:state:${state}`, "1", "EX", OAUTH_STATE_TTL_SECONDS);
+  await oauthRedis.set(`cadero:oauth:state:${state}`, "1", "EX", OAUTH_STATE_TTL_SECONDS);
   const authorize = new URL("https://github.com/login/oauth/authorize");
   authorize.searchParams.set("client_id", options.oauth.clientId);
   authorize.searchParams.set("redirect_uri", `${options.oauth.publicUrl}/v1/oauth/callback`);
@@ -419,15 +419,15 @@ app.get<{ Querystring: { code?: string; state?: string } }>(
     if (!code || !state) {
       return reply.code(400).send({ error: "invalid state" });
     }
-    const deleted = await oauthRedis.del(`cadence:oauth:state:${state}`);
+    const deleted = await oauthRedis.del(`cadero:oauth:state:${state}`);
     if (deleted !== 1) {
       return reply.code(400).send({ error: "invalid state" });
     }
     try {
       const githubToken = await exchangeOAuthCode(options.oauth, code);
       const login = await verifyGitHubUser(githubToken, options.oauth.fetchImpl);
-      const token = `cadence_${randomBytes(16).toString("hex")}`;
-      await oauthRedis.set(`cadence:session:${token}`, login, "EX", SESSION_TTL_SECONDS);
+      const token = `cadero_${randomBytes(16).toString("hex")}`;
+      await oauthRedis.set(`cadero:session:${token}`, login, "EX", SESSION_TTL_SECONDS);
       const target = new URL(options.oauth.appUrl);
       target.hash = `token=${token}`;
       return reply.redirect(target.toString());
@@ -450,7 +450,7 @@ Keep `options.verifyUser ?? …` semantics identical for existing tests. Add `oa
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm run build --workspace=@cadence/relay && npm test --workspace=@cadence/relay && npm test --workspace=@cadence/cli && npm run typecheck`
+Run: `npm run build --workspace=@cadero/relay && npm test --workspace=@cadero/relay && npm test --workspace=@cadero/cli && npm run typecheck`
 Expected: all relay tests green (Plan 1-2 suites still pass — `verifyUser` injection unchanged), typecheck clean.
 
 - [ ] **Step 5: Commit**
@@ -475,7 +475,7 @@ git commit -m "feat(relay): add github oauth portal with session tokens"
 
 **Interfaces:**
 - Consumes: nothing yet.
-- Produces: `@cadence/mobile` building a static export (`out/`) with Tailwind, plus `renderApp()`-free smoke test proving the suite runs. Root build script stays protocol+relay+cli only (Next has its own build; the exit-gate task wires the full chain).
+- Produces: `@cadero/mobile` building a static export (`out/`) with Tailwind, plus `renderApp()`-free smoke test proving the suite runs. Root build script stays protocol+relay+cli only (Next has its own build; the exit-gate task wires the full chain).
 
 - [ ] **Step 1: Write manifests and configs**
 
@@ -483,7 +483,7 @@ git commit -m "feat(relay): add github oauth portal with session tokens"
 
 ```json
 {
-  "name": "@cadence/mobile",
+  "name": "@cadero/mobile",
   "version": "0.1.0",
   "type": "module",
   "private": true,
@@ -493,7 +493,7 @@ git commit -m "feat(relay): add github oauth portal with session tokens"
     "test": "vitest run"
   },
   "dependencies": {
-    "@cadence/protocol": "0.1.0",
+    "@cadero/protocol": "0.1.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "jsqr": "^1.4.0",
@@ -568,7 +568,7 @@ export default {
 import type { ReactNode } from "react";
 import "./globals.css";
 
-export const metadata = { title: "Cadence", viewport: "width=device-width, initial-scale=1" };
+export const metadata = { title: "Cadero", viewport: "width=device-width, initial-scale=1" };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
@@ -585,7 +585,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 export default function Home() {
   return (
     <main className="flex min-h-dvh items-center justify-center p-6">
-      <p className="text-slate-400">Cadence mobile — pairing UI lands in Task 9.</p>
+      <p className="text-slate-400">Cadero mobile — pairing UI lands in Task 9.</p>
     </main>
   );
 }
@@ -617,14 +617,14 @@ import Home from "../src/app/page.js";
 describe("mobile scaffold", () => {
   it("renders the placeholder shell", () => {
     render(<Home />);
-    expect(screen.getByText(/Cadence mobile/)).toBeDefined();
+    expect(screen.getByText(/Cadero mobile/)).toBeDefined();
   });
 });
 ```
 
 - [ ] **Step 3: Install and verify**
 
-Run: `npm install && npm test --workspace=@cadence/mobile && npm run build --workspace=@cadence/mobile && npm run typecheck`
+Run: `npm install && npm test --workspace=@cadero/mobile && npm run build --workspace=@cadero/mobile && npm run typecheck`
 Expected: install succeeds, smoke test passes, static export builds to `packages/mobile/out/`, typecheck clean. Root build script is unchanged in this task.
 
 - [ ] **Step 4: Commit**
@@ -643,7 +643,7 @@ git commit -m "chore(mobile): scaffold next.js static-export pwa with tailwind a
 - Test: `packages/mobile/tests/scanQr.test.ts`
 
 **Interfaces:**
-- Consumes: `parsePairingPayload` from `@cadence/protocol` (Task 1).
+- Consumes: `parsePairingPayload` from `@cadero/protocol` (Task 1).
 - Produces (consumed by Task 9): `decodeQrFromImageData(imageData: ImageData): ParsedPairing` — runs jsQR, throws `Error("no QR code found")` on miss, `parsePairingPayload` errors bubble verbatim; `createCameraScanner(): { start(onFrame: (imageData: ImageData) => void): Promise<void>; stop(): void }` — `getUserMedia` rear camera loop at video element size, 250ms sampling, `stop()` releases the track. (The UI renders the video element itself; the scanner only owns the stream + loop.)
 
 - [ ] **Step 1: Write the failing test**
@@ -655,7 +655,7 @@ Generate a QR bitmap with the `qrcode` package (CLI devDep already has it; add `
 import { describe, expect, it } from "vitest";
 import QRCode from "qrcode";
 import { decodeQrFromImageData } from "../src/pairing/scanQr.js";
-import { parsePairingPayload } from "@cadence/protocol";
+import { parsePairingPayload } from "@cadero/protocol";
 
 async function qrImageData(payload: string): Promise<ImageData> {
   const qr = QRCode.create(payload, { errorCorrectionLevel: "M" });
@@ -676,7 +676,7 @@ async function qrImageData(payload: string): Promise<ImageData> {
 }
 
 const PAYLOAD =
-  "cadence://pair?v=1&relay=https%3A%2F%2Frelay.example.com&room=room_abc123def4567890&key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+  "cadero://pair?v=1&relay=https%3A%2F%2Frelay.example.com&room=room_abc123def4567890&key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
 describe("decodeQrFromImageData", () => {
   it("decodes a generated pairing QR into a parsed payload", async () => {
@@ -692,8 +692,8 @@ describe("decodeQrFromImageData", () => {
   });
 
   it("surfaces parsePairingPayload errors verbatim", async () => {
-    const image = await qrImageData("https://example.com/not-cadence");
-    expect(() => decodeQrFromImageData(image)).toThrow("not a cadence pairing payload");
+    const image = await qrImageData("https://example.com/not-cadero");
+    expect(() => decodeQrFromImageData(image)).toThrow("not a cadero pairing payload");
   });
 });
 
@@ -704,7 +704,7 @@ describe("parsePairingPayload integration", () => {
       // decodeQr returns ParsedPairing already; assert the contract holds
       const parsed = decodeQrFromImageData(image);
       return parsePairingPayload(
-        `cadence://pair?v=1&relay=${encodeURIComponent(parsed.relay)}&room=${encodeURIComponent(parsed.room)}&key=${parsed.key}`,
+        `cadero://pair?v=1&relay=${encodeURIComponent(parsed.relay)}&room=${encodeURIComponent(parsed.room)}&key=${parsed.key}`,
       );
     })();
     expect(text).toEqual(decodeQrFromImageData(image));
@@ -716,7 +716,7 @@ describe("parsePairingPayload integration", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npm test --workspace=@cadence/mobile`
+Run: `npm test --workspace=@cadero/mobile`
 Expected: FAIL — module missing.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -725,7 +725,7 @@ Expected: FAIL — module missing.
 
 ```ts
 import jsQR from "jsqr";
-import { parsePairingPayload, type ParsedPairing } from "@cadence/protocol";
+import { parsePairingPayload, type ParsedPairing } from "@cadero/protocol";
 
 export function decodeQrFromImageData(imageData: ImageData): ParsedPairing {
   const result = jsQR(imageData.data, imageData.width, imageData.height);
@@ -779,7 +779,7 @@ Add `qrcode` to mobile devDependencies (test-only QR generation).
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm test --workspace=@cadence/mobile && npm run typecheck`
+Run: `npm test --workspace=@cadero/mobile && npm run typecheck`
 Expected: scan tests pass, typecheck clean.
 
 - [ ] **Step 5: Commit**
@@ -796,7 +796,7 @@ git commit -m "feat(mobile): qr camera scan and pairing payload import"
 - Test: `packages/mobile/tests/socket.test.ts`
 
 **Interfaces:**
-- Consumes: `encryptEnvelope`, `decryptEnvelope`, `EnvelopeError`, `EncryptedEnvelope`, `WireEvent` from `@cadence/protocol`; relay `createServer`/`createRoomStore` for contract tests; close codes 4401/4404.
+- Consumes: `encryptEnvelope`, `decryptEnvelope`, `EnvelopeError`, `EncryptedEnvelope`, `WireEvent` from `@cadero/protocol`; relay `createServer`/`createRoomStore` for contract tests; close codes 4401/4404.
 - Produces (consumed by Tasks 6, 8, 9): `class MobileSocket` with:
   - `constructor(opts: { relayUrl: string; roomId: string; token: string; sessionKey: CryptoKey; WebSocketImpl?: typeof WebSocket; onEvent(e: WireEvent): void; onGap(): void; onClosed(code: number, reason: string): void; onFatal?(e: EnvelopeError): void })` — `WebSocketImpl` defaults to `globalThis.WebSocket`.
   - `connect(): Promise<void>`, `close(): Promise<void>`, `send(event: WireEvent): Promise<void>` (stamps `meta.session_id`/`timestamp` if absent — same semantics as the CLI socket; throws when not open; no offline queue).
@@ -814,9 +814,9 @@ import {
   exportSessionKey,
   generateSessionKey,
   importSessionKey,
-} from "@cadence/protocol";
-import { createServer } from "@cadence/relay/server.js";
-import { createRoomStore } from "@cadence/relay/rooms.js";
+} from "@cadero/protocol";
+import { createServer } from "@cadero/relay/server.js";
+import { createRoomStore } from "@cadero/relay/rooms.js";
 import { MobileSocket } from "../src/realtime/socket.js";
 
 const redisUrl = "redis://127.0.0.1:6379";
@@ -911,7 +911,7 @@ describe("MobileSocket against the real relay", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm run build --workspace=@cadence/relay && npm test --workspace=@cadence/mobile`
+Run: `npm run build --workspace=@cadero/relay && npm test --workspace=@cadero/mobile`
 Expected: FAIL — module missing.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -924,7 +924,7 @@ import {
   EnvelopeError,
   type EncryptedEnvelope,
   type WireEvent,
-} from "@cadence/protocol";
+} from "@cadero/protocol";
 
 const BASE_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 30000;
@@ -1068,7 +1068,7 @@ Note: browser `WebSocket` uses `readyState` constants on the constructor (`.OPEN
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm run build --workspace=@cadence/relay && npm test --workspace=@cadence/mobile && npm run typecheck`
+Run: `npm run build --workspace=@cadero/relay && npm test --workspace=@cadero/mobile && npm run typecheck`
 Expected: contract test green (send/receive + reconnect gap), typecheck clean.
 
 - [ ] **Step 5: Commit**
@@ -1141,7 +1141,7 @@ describe("TerminalView", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/mobile`
+Run: `npm test --workspace=@cadero/mobile`
 Expected: FAIL — component missing.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -1209,7 +1209,7 @@ export function TerminalView({ onReady }: { onReady(api: TerminalApi): void }) {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm test --workspace=@cadence/mobile && npm run typecheck`
+Run: `npm test --workspace=@cadero/mobile && npm run typecheck`
 Expected: terminal test passes with the stubbed modules, typecheck clean.
 
 - [ ] **Step 5: Commit**
@@ -1226,7 +1226,7 @@ git commit -m "feat(mobile): xterm terminal canvas component"
 - Test: `packages/mobile/tests/sessionState.test.ts`
 
 **Interfaces:**
-- Consumes: `WireEvent` from `@cadence/protocol`.
+- Consumes: `WireEvent` from `@cadero/protocol`.
 - Produces (consumed by Task 9): `type SessionPhase = "need-pairing" | "connecting" | "live" | "closed"`; `type InterceptState = { id: string; agent: string; command: string }`; `interface SessionState { phase: SessionPhase; intercept: InterceptState | null; gapped: boolean; chunkCount: number }`; `type SessionAction = { type: "PAIR_SCANNED" } | { type: "CONNECTED" } | { type: "EVENT"; event: WireEvent } | { type: "GAP" } | { type: "RESOLVED" } | { type: "CLOSED"; code: number; reason: string } | { type: "FATAL"; message: string }`; `reduceSession(state: SessionState, action: SessionAction): SessionState` with semantics:
   - `EVENT TERMINAL_DATA` → `chunkCount += 1`
   - `EVENT INTERCEPT_REQUIRED` → sets `intercept { id: meta.session_id + ":" + timestamp, agent, command }`
@@ -1303,14 +1303,14 @@ describe("reduceSession", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/mobile`
+Run: `npm test --workspace=@cadero/mobile`
 Expected: FAIL — module missing.
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```ts
 // packages/mobile/src/state/sessionState.ts
-import type { WireEvent } from "@cadence/protocol";
+import type { WireEvent } from "@cadero/protocol";
 
 export type SessionPhase = "need-pairing" | "connecting" | "live" | "closed";
 
@@ -1385,7 +1385,7 @@ export function reduceSession(state: SessionState, action: SessionAction): Sessi
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm test --workspace=@cadence/mobile && npm run typecheck`
+Run: `npm test --workspace=@cadero/mobile && npm run typecheck`
 Expected: reducer tests pass, typecheck clean.
 
 - [ ] **Step 5: Commit**
@@ -1483,7 +1483,7 @@ describe("GapBanner", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/mobile`
+Run: `npm test --workspace=@cadero/mobile`
 Expected: FAIL — components missing.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -1598,7 +1598,7 @@ export function GapBanner({ visible }: { visible: boolean }) {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm test --workspace=@cadence/mobile && npm run typecheck`
+Run: `npm test --workspace=@cadero/mobile && npm run typecheck`
 Expected: component tests pass, typecheck clean.
 
 - [ ] **Step 5: Commit**
@@ -1611,18 +1611,18 @@ git commit -m "feat(mobile): intercept overlay, prompt input, gap banner"
 ### Task 9: App shell wiring
 
 **Files:**
-- Create: `packages/mobile/src/app/CadenceApp.tsx`
+- Create: `packages/mobile/src/app/CaderoApp.tsx`
 - Create: `packages/mobile/src/app/oauth.ts`
-- Modify: `packages/mobile/src/app/page.tsx` (mount CadenceApp, client boundary)
+- Modify: `packages/mobile/src/app/page.tsx` (mount CaderoApp, client boundary)
 - Test: `packages/mobile/tests/appFlow.test.tsx`
 
 **Interfaces:**
-- Consumes: everything above — `decodeQrFromImageData`, `createCameraScanner` (Task 4), `MobileSocket` (Task 5), `TerminalView` (Task 6), reducer + components (Tasks 7-8), `importSessionKey` from `@cadence/protocol`.
+- Consumes: everything above — `decodeQrFromImageData`, `createCameraScanner` (Task 4), `MobileSocket` (Task 5), `TerminalView` (Task 6), reducer + components (Tasks 7-8), `importSessionKey` from `@cadero/protocol`.
 - Produces: the complete PWA flow.
-  - `packages/mobile/src/app/oauth.ts`: `readOAuthTokenFromHash(): string | null` — parses `#token=cadence_…` from `location.hash` and strips the hash (history.replaceState); `loginUrl(relay: string): string` → `${relay}/v1/oauth/login`.
-  - `CadenceApp` (the only stateful client component): phases per the reducer; QR screen renders a `<video>` + scanner + a manual-paste textarea (same `parsePairingPayload` path); after a successful scan: `importSessionKey(key)`, build `MobileSocket`, connect, wire callbacks into the reducer; TERMINAL_DATA → terminal api write; INTERCEPT_REQUIRED → overlay; overlay decision → `RESOLVE_INTERCEPT { decision, input_payload: null }` via socket, then `RESOLVED`; prompt send → `EXECUTE_AGENT_PROMPT { prompt }`; onClosed/onFatal → closed screen with reason.
+  - `packages/mobile/src/app/oauth.ts`: `readOAuthTokenFromHash(): string | null` — parses `#token=cadero_…` from `location.hash` and strips the hash (history.replaceState); `loginUrl(relay: string): string` → `${relay}/v1/oauth/login`.
+  - `CaderoApp` (the only stateful client component): phases per the reducer; QR screen renders a `<video>` + scanner + a manual-paste textarea (same `parsePairingPayload` path); after a successful scan: `importSessionKey(key)`, build `MobileSocket`, connect, wire callbacks into the reducer; TERMINAL_DATA → terminal api write; INTERCEPT_REQUIRED → overlay; overlay decision → `RESOLVE_INTERCEPT { decision, input_payload: null }` via socket, then `RESOLVED`; prompt send → `EXECUTE_AGENT_PROMPT { prompt }`; onClosed/onFatal → closed screen with reason.
   - Security: session key and OAuth token held only in `useRef`/closure memory; nothing persisted; no `console.log` of decrypted events (log nothing).
-  - `page.tsx` becomes `"use client"` + dynamic import of `CadenceApp` (`ssr: false` via `next/dynamic`) so the static export ships a hydratable shell.
+  - `page.tsx` becomes `"use client"` + dynamic import of `CaderoApp` (`ssr: false` via `next/dynamic`) so the static export ships a hydratable shell.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1633,8 +1633,8 @@ import { readOAuthTokenFromHash } from "../src/app/oauth.js";
 
 describe("readOAuthTokenFromHash", () => {
   it("extracts and strips the token hash", () => {
-    window.location.hash = "#token=cadence_abc";
-    expect(readOAuthTokenFromHash()).toBe("cadence_abc");
+    window.location.hash = "#token=cadero_abc";
+    expect(readOAuthTokenFromHash()).toBe("cadero_abc");
     expect(window.location.hash).toBe("");
     expect(readOAuthTokenFromHash()).toBeNull();
   });
@@ -1645,7 +1645,7 @@ describe("readOAuthTokenFromHash", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/mobile`
+Run: `npm test --workspace=@cadero/mobile`
 Expected: FAIL — module missing.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -1665,14 +1665,14 @@ export function loginUrl(relay: string): string {
 }
 ```
 
-`CadenceApp` (condensed but complete; the implementer writes it out fully):
+`CaderoApp` (condensed but complete; the implementer writes it out fully):
 
 ```tsx
-// packages/mobile/src/app/CadenceApp.tsx
+// packages/mobile/src/app/CaderoApp.tsx
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { importSessionKey, parsePairingPayload } from "@cadence/protocol";
+import { importSessionKey, parsePairingPayload } from "@cadero/protocol";
 import {
   initialSessionState,
   reduceSession,
@@ -1687,7 +1687,7 @@ import { PromptInput } from "./components/PromptInput.js";
 import { GapBanner } from "./components/GapBanner.js";
 import { readOAuthTokenFromHash, loginUrl } from "./oauth.js";
 
-export function CadenceApp() {
+export function CaderoApp() {
   const [state, dispatch] = useReducer(reduceSession, initialSessionState);
   const [error, setError] = useState<string | null>(null);
   const [resolving, setResolving] = useState(false);
@@ -1874,13 +1874,13 @@ export function CadenceApp() {
 
 import dynamic from "next/dynamic";
 
-const CadenceApp = dynamic(() => import("./CadenceApp.js").then((m) => m.CadenceApp), {
+const CaderoApp = dynamic(() => import("./CaderoApp.js").then((m) => m.CaderoApp), {
   ssr: false,
   loading: () => <main className="p-6 text-slate-400">Loading…</main>,
 });
 
 export default function Home() {
-  return <CadenceApp />;
+  return <CaderoApp />;
 }
 ```
 
@@ -1891,7 +1891,7 @@ Implementation notes (binding):
 
 - [ ] **Step 4: Run tests and the dev-server walkthrough**
 
-Run: `npm run build --workspace=@cadence/mobile && npm test --workspace=@cadence/mobile && npm run typecheck`
+Run: `npm run build --workspace=@cadero/mobile && npm test --workspace=@cadero/mobile && npm run typecheck`
 Expected: static export builds, hash-reader test passes, typecheck clean. Manual walkthrough recorded in the report (real relay + real CLI session + pasted payload → live terminal).
 
 - [ ] **Step 5: Commit**
@@ -1916,8 +1916,8 @@ git commit -m "feat(mobile): wire pairing, terminal, prompt and overlay into the
 Root `package.json`:
 
 ```json
-"build": "npm run build --workspace=@cadence/protocol && npm run build --workspace=@cadence/relay && npm run build --workspace=@cadence/cli && npm run build --workspace=@cadence/mobile",
-"test": "npm test --workspace=@cadence/protocol && npm test --workspace=@cadence/relay && npm test --workspace=@cadence/cli && npm test --workspace=@cadence/mobile"
+"build": "npm run build --workspace=@cadero/protocol && npm run build --workspace=@cadero/relay && npm run build --workspace=@cadero/cli && npm run build --workspace=@cadero/mobile",
+"test": "npm test --workspace=@cadero/protocol && npm test --workspace=@cadero/relay && npm test --workspace=@cadero/cli && npm test --workspace=@cadero/mobile"
 ```
 
 - [ ] **Step 2: Run the gate**

@@ -1,10 +1,10 @@
-# Cadence CLI Daemon Implementation Plan
+# Cadero CLI Daemon Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build `@cadence/cli` — the local daemon that spawns agents under a PTY, intercepts prompts, enforces the safelist, and streams encrypted frames to the relay — plus the two supporting additions it needs: session-key import/export helpers in `@cadence/protocol` and a `POST /v1/pair` endpoint on the relay.
+**Goal:** Build `@cadero/cli` — the local daemon that spawns agents under a PTY, intercepts prompts, enforces the safelist, and streams encrypted frames to the relay — plus the two supporting additions it needs: session-key import/export helpers in `@cadero/protocol` and a `POST /v1/pair` endpoint on the relay.
 
-**Architecture:** CLI is an npm-workspaces package on top of the shipped `@cadence/protocol` and `@cadence/relay` from Plan 1. Layering (one responsibility per file): credentials + GitHub device flow → pairing (HTTP + QR) → CadenceSocket (encrypt/decrypt/reconnect) → PTY session → intercept engine + safelist → session orchestration → `cadence-cli` entrypoint. The daemon never executes raw shell from the network; the only PTY writes are prompt text and approval/denial strings appended to the existing agent subshell.
+**Architecture:** CLI is an npm-workspaces package on top of the shipped `@cadero/protocol` and `@cadero/relay` from Plan 1. Layering (one responsibility per file): credentials + GitHub device flow → pairing (HTTP + QR) → CaderoSocket (encrypt/decrypt/reconnect) → PTY session → intercept engine + safelist → session orchestration → `cadero-cli` entrypoint. The daemon never executes raw shell from the network; the only PTY writes are prompt text and approval/denial strings appended to the existing agent subshell.
 
 **Tech Stack:** TypeScript strict, Node 20+, npm workspaces, zod, node-pty, ws, qrcode (terminal QR), vitest. Tests use injected `fetch`, a real Redis + real relay instance for socket contract tests, and `bash` as the PTY fixture process.
 
@@ -12,13 +12,13 @@
 
 - Node 20 or newer, no exceptions.
 - TypeScript strict mode in every package, `tsc --noEmit` must pass (root `npm run typecheck`).
-- npm workspaces, package names `@cadence/protocol`, `@cadence/relay`, `@cadence/cli`.
+- npm workspaces, package names `@cadero/protocol`, `@cadero/relay`, `@cadero/cli`.
 - Real Redis required; no in-memory fallbacks in implementation or tests.
 - Local final veto (spec §4): the daemon never executes raw shell from the network. The only PTY writes are prompt text from `EXECUTE_AGENT_PROMPT` and decision strings from `RESOLVE_INTERCEPT`, appended to the existing agent subshell.
 - Zero-knowledge transport: the daemon encrypts with the session AES key before sending; only the QR on the user's terminal ever carries the key.
 - Fail fast: missing agent binary, unreachable relay, failed auth, or missing credentials all exit with a clear error. No silent degradation, no dev bypasses.
 - Repo conventions: named `import { Redis }` from ioredis where needed; no `esModuleInterop`; log frame bodies never (use `redactForLog`-style messages).
-- Existing interfaces available (Plan 1, exact names): `@cadence/protocol` exports `WireEventSchema`, `WireEvent`, `TerminalDataSchema`, `InterceptRequiredSchema`, `ResolveInterceptSchema`, `ExecuteAgentPromptSchema`, `EncryptedEnvelopeSchema`, `EncryptedEnvelope`, `generateSessionKey()`, `encryptEnvelope(roomId, key, event)`, `decryptEnvelope(key, envelope)`. `@cadence/relay` exports `createServer({ redisUrl, verifyUser? })`, `createRoomStore(redisUrl)`, `runMain({ env? })`. Relay close codes: 4401 unauthorized, 4404 unknown room.
+- Existing interfaces available (Plan 1, exact names): `@cadero/protocol` exports `WireEventSchema`, `WireEvent`, `TerminalDataSchema`, `InterceptRequiredSchema`, `ResolveInterceptSchema`, `ExecuteAgentPromptSchema`, `EncryptedEnvelopeSchema`, `EncryptedEnvelope`, `generateSessionKey()`, `encryptEnvelope(roomId, key, event)`, `decryptEnvelope(key, envelope)`. `@cadero/relay` exports `createServer({ redisUrl, verifyUser? })`, `createRoomStore(redisUrl)`, `runMain({ env? })`. Relay close codes: 4401 unauthorized, 4404 unknown room.
 
 ---
 
@@ -123,7 +123,7 @@ describe("EnvelopeError", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/protocol`
+Run: `npm test --workspace=@cadero/protocol`
 Expected: FAIL with "Cannot find module '../src/keys.js'" (or missing `encryptRaw` export).
 
 - [ ] **Step 3: Write minimal implementation**
@@ -231,7 +231,7 @@ export * from "./keys.js";
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm run build --workspace=@cadence/protocol && npm test --workspace=@cadence/protocol && npm test --workspace=@cadence/relay && npm run typecheck`
+Run: `npm run build --workspace=@cadero/protocol && npm test --workspace=@cadero/protocol && npm test --workspace=@cadero/relay && npm run typecheck`
 Expected: protocol tests pass (including all Plan 1 tests — the old "wrong key rejects" test still passes because EnvelopeError extends Error), relay 12/12, typecheck clean.
 
 - [ ] **Step 5: Commit**
@@ -299,7 +299,7 @@ describe("POST /v1/pair", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/relay`
+Run: `npm test --workspace=@cadero/relay`
 Expected: FAIL — 404 on `/v1/pair`.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -330,7 +330,7 @@ app.post("/v1/pair", async (request, reply) => {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm test --workspace=@cadence/relay`
+Run: `npm test --workspace=@cadero/relay`
 Expected: all relay tests pass (previous suites + 2 new).
 
 - [ ] **Step 5: Commit**
@@ -346,12 +346,12 @@ git commit -m "feat(relay): add authenticated room pairing endpoint"
 - Create: `packages/cli/package.json`
 - Create: `packages/cli/tsconfig.json`
 - Create: `packages/cli/src/version.ts`
-- Modify: root `package.json` (add `@cadence/cli` to the build script)
+- Modify: root `package.json` (add `@cadero/cli` to the build script)
 - Test: `packages/cli/tests/version.test.ts`
 
 **Interfaces:**
 - Consumes: nothing yet.
-- Produces: package `@cadence/cli` with bin `cadence-cli`, tsconfig, and `export const CADENCE_VERSION = "0.1.0"` from `src/version.ts`. Root build script builds protocol, relay, and cli.
+- Produces: package `@cadero/cli` with bin `cadero-cli`, tsconfig, and `export const CADERO_VERSION = "0.1.0"` from `src/version.ts`. Root build script builds protocol, relay, and cli.
 
 - [ ] **Step 1: Write package manifest and configs**
 
@@ -359,16 +359,16 @@ git commit -m "feat(relay): add authenticated room pairing endpoint"
 
 ```json
 {
-  "name": "@cadence/cli",
+  "name": "@cadero/cli",
   "version": "0.1.0",
   "type": "module",
-  "bin": { "cadence-cli": "./dist/main.js" },
+  "bin": { "cadero-cli": "./dist/main.js" },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
   "dependencies": {
-    "@cadence/protocol": "0.1.0",
+    "@cadero/protocol": "0.1.0",
     "node-pty": "^1.0.0",
     "qrcode": "^1.5.4",
     "ws": "^8.18.0",
@@ -398,17 +398,17 @@ Note: tests are excluded from build (relay precedent); vitest checks them at tra
 
 ```ts
 // packages/cli/src/version.ts
-export const CADENCE_VERSION = "0.1.0";
+export const CADERO_VERSION = "0.1.0";
 ```
 
 ```ts
 // packages/cli/tests/version.test.ts
 import { describe, expect, it } from "vitest";
-import { CADENCE_VERSION } from "../src/version.js";
+import { CADERO_VERSION } from "../src/version.js";
 
 describe("version", () => {
   it("matches the package version", () => {
-    expect(CADENCE_VERSION).toBe("0.1.0");
+    expect(CADERO_VERSION).toBe("0.1.0");
   });
 });
 ```
@@ -418,17 +418,17 @@ describe("version", () => {
 Root `package.json` scripts.build becomes:
 
 ```json
-"build": "npm run build --workspace=@cadence/protocol && npm run build --workspace=@cadence/relay && npm run build --workspace=@cadence/cli"
+"build": "npm run build --workspace=@cadero/protocol && npm run build --workspace=@cadero/relay && npm run build --workspace=@cadero/cli"
 ```
 
-Run: `npm install && npm run build && npm test --workspace=@cadence/cli && npm run typecheck`
+Run: `npm install && npm run build && npm test --workspace=@cadero/cli && npm run typecheck`
 Expected: install succeeds (node-pty prebuilds for macOS), build green, 1/1 test passes, typecheck clean.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add packages/cli/package.json packages/cli/tsconfig.json packages/cli/src/version.ts packages/cli/tests/version.test.ts package.json package-lock.json
-git commit -m "chore(cli): scaffold @cadence/cli package with cadence-cli bin"
+git commit -m "chore(cli): scaffold @cadero/cli package with cadero-cli bin"
 ```
 
 ### Task 4: GitHub device-flow login + credential store
@@ -441,7 +441,7 @@ git commit -m "chore(cli): scaffold @cadence/cli package with cadence-cli bin"
 
 **Interfaces:**
 - Consumes: nothing from earlier tasks.
-- Produces (used by Tasks 5 and 10): `requestDeviceCode(fetchImpl: typeof fetch): Promise<{ device_code: string; user_code: string; verification_uri: string; interval: number; expires_in: number }>`; `pollForAccessToken(fetchImpl: typeof fetch, deviceCode: string, opts: { interval: number; expiresIn: number; onUserCodeShown?: () => void }): Promise<string>` handling `authorization_pending`, `slow_down` (+5s), and expiry (`Error "device code expired"`); `loadCredentials(dir: string): Promise<{ githubToken: string } | null>`; `saveCredentials(dir: string, creds: { githubToken: string }): Promise<void>` (file mode 0600); `CADENCE_DIR_DEFAULT = path.join(os.homedir(), ".cadence")`.
+- Produces (used by Tasks 5 and 10): `requestDeviceCode(fetchImpl: typeof fetch): Promise<{ device_code: string; user_code: string; verification_uri: string; interval: number; expires_in: number }>`; `pollForAccessToken(fetchImpl: typeof fetch, deviceCode: string, opts: { interval: number; expiresIn: number; onUserCodeShown?: () => void }): Promise<string>` handling `authorization_pending`, `slow_down` (+5s), and expiry (`Error "device code expired"`); `loadCredentials(dir: string): Promise<{ githubToken: string } | null>`; `saveCredentials(dir: string, creds: { githubToken: string }): Promise<void>` (file mode 0600); `CADERO_DIR_DEFAULT = path.join(os.homedir(), ".cadero")`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -544,7 +544,7 @@ afterEach(() => {
 
 describe("credentials", () => {
   it("saves and loads credentials with 0600 permissions", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-creds-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-creds-"));
     await saveCredentials(dir, { githubToken: "tok123" });
     expect(await loadCredentials(dir)).toEqual({ githubToken: "tok123" });
     const stat = (await import("node:fs")).statSync(join(dir, "credentials.json"));
@@ -552,7 +552,7 @@ describe("credentials", () => {
   });
 
   it("returns null when no credentials exist", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-creds-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-creds-"));
     expect(await loadCredentials(dir)).toBeNull();
   });
 });
@@ -560,7 +560,7 @@ describe("credentials", () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npm test --workspace=@cadence/cli`
+Run: `npm test --workspace=@cadero/cli`
 Expected: FAIL with "Cannot find module '../src/ghDevice.js'" and '../src/credentials.js'.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -593,7 +593,7 @@ export async function requestDeviceCode(fetchImpl: typeof fetch): Promise<Device
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
-      "User-Agent": "cadence-cli",
+      "User-Agent": "cadero-cli",
     },
     body: JSON.stringify({ client_id: CLIENT_ID, scope: "read:user" }),
   });
@@ -641,7 +641,7 @@ export async function pollForAccessToken(
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
-        "User-Agent": "cadence-cli",
+        "User-Agent": "cadero-cli",
       },
       body: JSON.stringify({
         client_id: CLIENT_ID,
@@ -672,7 +672,7 @@ import { mkdir, readFile, writeFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-export const CADENCE_DIR_DEFAULT = join(homedir(), ".cadence");
+export const CADERO_DIR_DEFAULT = join(homedir(), ".cadero");
 
 export interface Credentials {
   githubToken: string;
@@ -724,7 +724,7 @@ export async function loadCredentials(dir: string): Promise<Credentials | null> 
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm test --workspace=@cadence/cli && npm run typecheck`
+Run: `npm test --workspace=@cadero/cli && npm run typecheck`
 Expected: all CLI tests pass, typecheck clean.
 
 - [ ] **Step 5: Commit**
@@ -741,8 +741,8 @@ git commit -m "feat(cli): add github device flow login and credential store"
 - Test: `packages/cli/tests/pairing.test.ts`
 
 **Interfaces:**
-- Consumes: `generateSessionKey`, `exportSessionKey`, `importSessionKey` from `@cadence/protocol` (Task 1); relay `POST /v1/pair` (Task 2).
-- Produces (used by Tasks 9, 10): `pairSession(relayUrl: string, githubToken: string, fetchImpl?: typeof fetch): Promise<{ roomId: string; sessionKey: CryptoKey; qrPayload: string }>` where `qrPayload` is `cadence://pair?v=1&relay=<url>&room=<roomId>&key=<base64url raw key>`; `parsePairingPayload(payload: string): { relay: string; room: string; key: string }` (throws `Error "not a cadence pairing payload"` on anything else) — the mobile plan consumes `parsePairingPayload` for its QR-scan side.
+- Consumes: `generateSessionKey`, `exportSessionKey`, `importSessionKey` from `@cadero/protocol` (Task 1); relay `POST /v1/pair` (Task 2).
+- Produces (used by Tasks 9, 10): `pairSession(relayUrl: string, githubToken: string, fetchImpl?: typeof fetch): Promise<{ roomId: string; sessionKey: CryptoKey; qrPayload: string }>` where `qrPayload` is `cadero://pair?v=1&relay=<url>&room=<roomId>&key=<base64url raw key>`; `parsePairingPayload(payload: string): { relay: string; room: string; key: string }` (throws `Error "not a cadero pairing payload"` on anything else) — the mobile plan consumes `parsePairingPayload` for its QR-scan side.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -754,7 +754,7 @@ import {
   encryptEnvelope,
   exportSessionKey,
   importSessionKey,
-} from "@cadence/protocol";
+} from "@cadero/protocol";
 import { pairSession, parsePairingPayload } from "../src/pairing.js";
 
 describe("pairSession", () => {
@@ -808,7 +808,7 @@ describe("pairSession", () => {
 describe("parsePairingPayload", () => {
   it("rejects foreign payloads", () => {
     expect(() => parsePairingPayload("https://example.com")).toThrow(
-      "not a cadence pairing payload",
+      "not a cadero pairing payload",
     );
   });
 });
@@ -816,7 +816,7 @@ describe("parsePairingPayload", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/cli`
+Run: `npm test --workspace=@cadero/cli`
 Expected: FAIL with "Cannot find module '../src/pairing.js'".
 
 - [ ] **Step 3: Write minimal implementation**
@@ -827,7 +827,7 @@ import {
   exportSessionKey,
   generateSessionKey,
   importSessionKey,
-} from "@cadence/protocol";
+} from "@cadero/protocol";
 
 export interface PairingInfo {
   roomId: string;
@@ -844,7 +844,7 @@ export async function pairSession(
     method: "POST",
     headers: {
       Authorization: `Bearer ${githubToken}`,
-      "User-Agent": "cadence-cli",
+      "User-Agent": "cadero-cli",
     },
   });
   if (!res.ok) {
@@ -857,7 +857,7 @@ export async function pairSession(
   const roomId = body.room_id;
   const sessionKey = await generateSessionKey();
   const raw = await exportSessionKey(sessionKey);
-  const qrPayload = `cadence://pair?v=1&relay=${encodeURIComponent(relayUrl)}&room=${encodeURIComponent(roomId)}&key=${raw}`;
+  const qrPayload = `cadero://pair?v=1&relay=${encodeURIComponent(relayUrl)}&room=${encodeURIComponent(roomId)}&key=${raw}`;
   return { roomId, sessionKey, qrPayload };
 }
 
@@ -872,16 +872,16 @@ export function parsePairingPayload(payload: string): ParsedPairing {
   try {
     url = new URL(payload);
   } catch {
-    throw new Error("not a cadence pairing payload");
+    throw new Error("not a cadero pairing payload");
   }
-  if (url.protocol !== "cadence:" || url.hostname !== "pair" || url.searchParams.get("v") !== "1") {
-    throw new Error("not a cadence pairing payload");
+  if (url.protocol !== "cadero:" || url.hostname !== "pair" || url.searchParams.get("v") !== "1") {
+    throw new Error("not a cadero pairing payload");
   }
   const relay = url.searchParams.get("relay");
   const room = url.searchParams.get("room");
   const key = url.searchParams.get("key");
   if (!relay || !room || !key) {
-    throw new Error("not a cadence pairing payload");
+    throw new Error("not a cadero pairing payload");
   }
   return { relay, room, key };
 }
@@ -892,7 +892,7 @@ export { importSessionKey };
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm test --workspace=@cadence/cli && npm run typecheck`
+Run: `npm test --workspace=@cadero/cli && npm run typecheck`
 Expected: CLI tests pass, typecheck clean.
 
 - [ ] **Step 5: Commit**
@@ -902,15 +902,15 @@ git add packages/cli/src/pairing.ts packages/cli/tests/pairing.test.ts
 git commit -m "feat(cli): add relay pairing and QR payload"
 ```
 
-### Task 6: CadenceSocket — encrypted websocket client with reconnect
+### Task 6: CaderoSocket — encrypted websocket client with reconnect
 
 **Files:**
 - Create: `packages/cli/src/socket.ts`
 - Test: `packages/cli/tests/socket.test.ts`
 
 **Interfaces:**
-- Consumes: `encryptEnvelope`, `decryptEnvelope`, `EnvelopeError`, `WireEvent`, `WireEventSchema`, `EncryptedEnvelope` from `@cadence/protocol`; relay `createServer` + `createRoomStore` (contract tests); close codes 4401/4404 from Plan 1.
-- Produces (used by Task 9): `class CadenceSocket` with:
+- Consumes: `encryptEnvelope`, `decryptEnvelope`, `EnvelopeError`, `WireEvent`, `WireEventSchema`, `EncryptedEnvelope` from `@cadero/protocol`; relay `createServer` + `createRoomStore` (contract tests); close codes 4401/4404 from Plan 1.
+- Produces (used by Task 9): `class CaderoSocket` with:
   - `constructor(opts: { relayUrl: string; roomId: string; token: string; sessionKey: CryptoKey; sessionId: string; onClose?: (code: number, reason: string) => void })`
   - `connect(): Promise<void>` — resolves on open; wss:// for https, ws:// for http; URL `…/v1/stream?room_id=…&token=…`
   - `onEvent(handler: (event: WireEvent) => void): void`
@@ -928,20 +928,20 @@ import {
   exportSessionKey,
   generateSessionKey,
   importSessionKey,
-} from "@cadence/protocol";
-import { createServer } from "@cadence/relay/server.js";
-import { createRoomStore } from "@cadence/relay/rooms.js";
-import { CadenceSocket } from "../src/socket.js";
+} from "@cadero/protocol";
+import { createServer } from "@cadero/relay/server.js";
+import { createRoomStore } from "@cadero/relay/rooms.js";
+import { CaderoSocket } from "../src/socket.js";
 
 const redisUrl = "redis://127.0.0.1:6379";
 
-function onceEvent(socket: CadenceSocket): Promise<unknown> {
+function onceEvent(socket: CaderoSocket): Promise<unknown> {
   return new Promise((resolve) => {
     socket.onEvent((event) => resolve(event));
   });
 }
 
-describe("CadenceSocket against the real relay", () => {
+describe("CaderoSocket against the real relay", () => {
   it("sends and receives decrypted wire events and reconnects after drop", async () => {
     const store = createRoomStore(redisUrl);
     const roomId = await store.createRoom();
@@ -953,7 +953,7 @@ describe("CadenceSocket against the real relay", () => {
     const relayUrl = `http://127.0.0.1:${port}`;
 
     const sessionKey = await generateSessionKey();
-    const cli = new CadenceSocket({
+    const cli = new CaderoSocket({
       relayUrl,
       roomId,
       token: "t",
@@ -964,7 +964,7 @@ describe("CadenceSocket against the real relay", () => {
 
     // A peer (the "phone" role) joins with its own import of the same key.
     const rawKey = await importSessionKey(await exportSessionKey(sessionKey));
-    const phone = new CadenceSocket({
+    const phone = new CaderoSocket({
       relayUrl,
       roomId,
       token: "t",
@@ -998,7 +998,7 @@ describe("CadenceSocket against the real relay", () => {
       payload: { decision: "APPROVE", input_payload: null },
     });
 
-    // Reconnect: closing the relay kills sockets; CadenceSocket retries
+    // Reconnect: closing the relay kills sockets; CaderoSocket retries
     // with backoff and rejoins a restarted relay on the same port.
     await app.close();
     const app2 = createServer({ redisUrl, verifyUser: async () => "cli" });
@@ -1023,7 +1023,7 @@ describe("CadenceSocket against the real relay", () => {
 });
 ```
 
-The relay package currently has no `exports` map; add one in `packages/relay/package.json` so `@cadence/relay/server.js` and `@cadence/relay/rooms.js` import cleanly:
+The relay package currently has no `exports` map; add one in `packages/relay/package.json` so `@cadero/relay/server.js` and `@cadero/relay/rooms.js` import cleanly:
 
 ```json
 "exports": {
@@ -1041,7 +1041,7 @@ and create `packages/relay/src/index.ts` with `export * from "./server.js";` if 
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm run build --workspace=@cadence/relay && npm test --workspace=@cadence/cli`
+Run: `npm run build --workspace=@cadero/relay && npm test --workspace=@cadero/cli`
 Expected: FAIL with "Cannot find module '../src/socket.js'".
 
 - [ ] **Step 3: Write minimal implementation**
@@ -1055,12 +1055,12 @@ import {
   EnvelopeError,
   type EncryptedEnvelope,
   type WireEvent,
-} from "@cadence/protocol";
+} from "@cadero/protocol";
 
 const BASE_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 30000;
 
-export interface CadenceSocketOptions {
+export interface CaderoSocketOptions {
   relayUrl: string;
   roomId: string;
   token: string;
@@ -1070,8 +1070,8 @@ export interface CadenceSocketOptions {
   onFatal?: (error: EnvelopeError) => void;
 }
 
-export class CadenceSocket {
-  private readonly opts: CadenceSocketOptions;
+export class CaderoSocket {
+  private readonly opts: CaderoSocketOptions;
   private ws: WebSocket | undefined;
   private backoffMs = BASE_BACKOFF_MS;
   private closedByUser = false;
@@ -1079,7 +1079,7 @@ export class CadenceSocket {
   private eventHandler: ((event: WireEvent) => void) | undefined;
   private connecting: Promise<void> | undefined;
 
-  constructor(opts: CadenceSocketOptions) {
+  constructor(opts: CaderoSocketOptions) {
     this.opts = opts;
   }
 
@@ -1192,7 +1192,7 @@ export class CadenceSocket {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm run build --workspace=@cadence/relay && npm run build --workspace=@cadence/protocol && npm test --workspace=@cadence/cli && npm run typecheck`
+Run: `npm run build --workspace=@cadero/relay && npm run build --workspace=@cadero/protocol && npm test --workspace=@cadero/cli && npm run typecheck`
 Expected: the reconnect contract test passes within 30s; typecheck clean. If the reconnect leg is flaky, the backoff reset on open plus the 2500ms wait are the dials — do not add jitter (determinism beats masking in tests).
 
 - [ ] **Step 5: Commit**
@@ -1210,7 +1210,7 @@ git commit -m "feat(cli): add encrypted relay socket with reconnect"
 
 **Interfaces:**
 - Consumes: node-pty.
-- Produces (used by Task 9): `interface PtySession { onData(cb: (chunk: string) => void): void; onExit(cb: (code: number) => void): void; write(input: string): void; kill(): void; }` and `createPtySession(opts: { command: string; args?: string[]; cwd: string; cols?: number; rows?: number }): PtySession`. Env per spec: `FORCE_COLOR: "3"`, `CADENCE_ACTIVE: "true"`, name `xterm-256color`, default 80x24, `cwd` is the invoking directory. A spawn failure surfaces as a thrown `Error` containing `agent '<command>' failed to start` — fail fast, no fallback binary.
+- Produces (used by Task 9): `interface PtySession { onData(cb: (chunk: string) => void): void; onExit(cb: (code: number) => void): void; write(input: string): void; kill(): void; }` and `createPtySession(opts: { command: string; args?: string[]; cwd: string; cols?: number; rows?: number }): PtySession`. Env per spec: `FORCE_COLOR: "3"`, `CADERO_ACTIVE: "true"`, name `xterm-256color`, default 80x24, `cwd` is the invoking directory. A spawn failure surfaces as a thrown `Error` containing `agent '<command>' failed to start` — fail fast, no fallback binary.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1242,9 +1242,9 @@ describe("createPtySession", () => {
       cwd: process.cwd(),
     });
     await new Promise((r) => setTimeout(r, 300));
-    session.write("from-cadence\r");
+    session.write("from-cadero\r");
     const chunk = await firstChunk(session);
-    expect(chunk).toContain("got:from-cadence");
+    expect(chunk).toContain("got:from-cadero");
     session.kill();
   });
 
@@ -1258,7 +1258,7 @@ describe("createPtySession", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/cli`
+Run: `npm test --workspace=@cadero/cli`
 Expected: FAIL with "Cannot find module '../src/pty.js'".
 
 - [ ] **Step 3: Write minimal implementation**
@@ -1293,7 +1293,7 @@ export function createPtySession(opts: PtyOptions): PtySession {
       env: {
         ...process.env,
         FORCE_COLOR: "3",
-        CADENCE_ACTIVE: "true",
+        CADERO_ACTIVE: "true",
       } as { [key: string]: string },
     });
   } catch {
@@ -1330,7 +1330,7 @@ export function createPtySession(opts: PtyOptions): PtySession {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm test --workspace=@cadence/cli && npm run typecheck`
+Run: `npm test --workspace=@cadero/cli && npm run typecheck`
 Expected: PTY tests pass (the missing-binary test proves fail-fast), typecheck clean.
 
 - [ ] **Step 5: Commit**
@@ -1350,7 +1350,7 @@ git commit -m "feat(cli): add node-pty session manager"
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces (used by Task 9): `type AgentName = "claude" | "opencode"`; `detectIntercept(agent: AgentName, chunk: string): { prompt: string; command: string } | null` — `prompt` is the matched confirmation text (trimmed to 500 chars), `command` is the agent's command line extracted from the non-empty line immediately before the prompt line (falls back to the prompt text when none exists; also trimmed to 500 chars). `isSafeCommand(command: string, safeCommands: string[]): boolean` (exact match after collapsing whitespace). `loadConfig(cwd: string): Promise<{ safeCommands: string[] }>` reading `<cwd>/.cadencerc` (JSON `{ "safeCommands": string[] }`; missing file → `{ safeCommands: [] }`; malformed → throws `Error ".cadencerc is not valid: <reason>"` — fail fast, no silent default).
+- Produces (used by Task 9): `type AgentName = "claude" | "opencode"`; `detectIntercept(agent: AgentName, chunk: string): { prompt: string; command: string } | null` — `prompt` is the matched confirmation text (trimmed to 500 chars), `command` is the agent's command line extracted from the non-empty line immediately before the prompt line (falls back to the prompt text when none exists; also trimmed to 500 chars). `isSafeCommand(command: string, safeCommands: string[]): boolean` (exact match after collapsing whitespace). `loadConfig(cwd: string): Promise<{ safeCommands: string[] }>` reading `<cwd>/.caderorc` (JSON `{ "safeCommands": string[] }`; missing file → `{ safeCommands: [] }`; malformed → throws `Error ".caderorc is not valid: <reason>"` — fail fast, no silent default).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1409,37 +1409,37 @@ afterEach(() => {
 });
 
 describe("loadConfig", () => {
-  it("returns empty safelist when .cadencerc is absent", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-cfg-"));
+  it("returns empty safelist when .caderorc is absent", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadero-cfg-"));
     expect(await loadConfig(dir)).toEqual({ safeCommands: [] });
   });
 
-  it("loads safeCommands from .cadencerc", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-cfg-"));
+  it("loads safeCommands from .caderorc", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadero-cfg-"));
     writeFileSync(
-      join(dir, ".cadencerc"),
+      join(dir, ".caderorc"),
       JSON.stringify({ safeCommands: ["npm test", "git status"] }),
     );
     expect(await loadConfig(dir)).toEqual({ safeCommands: ["npm test", "git status"] });
   });
 
-  it("fails loudly on malformed .cadencerc", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-cfg-"));
-    writeFileSync(join(dir, ".cadencerc"), "{ not json");
-    await expect(loadConfig(dir)).rejects.toThrow(".cadencerc is not valid");
+  it("fails loudly on malformed .caderorc", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadero-cfg-"));
+    writeFileSync(join(dir, ".caderorc"), "{ not json");
+    await expect(loadConfig(dir)).rejects.toThrow(".caderorc is not valid");
   });
 
   it("fails loudly when safeCommands is not a string array", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-cfg-"));
-    writeFileSync(join(dir, ".cadencerc"), JSON.stringify({ safeCommands: "npm test" }));
-    await expect(loadConfig(dir)).rejects.toThrow(".cadencerc is not valid");
+    dir = mkdtempSync(join(tmpdir(), "cadero-cfg-"));
+    writeFileSync(join(dir, ".caderorc"), JSON.stringify({ safeCommands: "npm test" }));
+    await expect(loadConfig(dir)).rejects.toThrow(".caderorc is not valid");
   });
 });
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `npm test --workspace=@cadence/cli`
+Run: `npm test --workspace=@cadero/cli`
 Expected: FAIL with "Cannot find module '../src/intercept.js'" and '../src/config.js'.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -1506,25 +1506,25 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 
-const CadenceRcSchema = z.object({
+const CaderoRcSchema = z.object({
   safeCommands: z.array(z.string().min(1)).max(100).default([]),
 });
 
-export interface CadenceConfig {
+export interface CaderoConfig {
   safeCommands: string[];
 }
 
-export async function loadConfig(cwd: string): Promise<CadenceConfig> {
-  const path = join(cwd, ".cadencerc");
+export async function loadConfig(cwd: string): Promise<CaderoConfig> {
+  const path = join(cwd, ".caderorc");
   let raw: string;
   try {
     raw = await readFile(path, "utf8");
   } catch {
     return { safeCommands: [] };
   }
-  const parsed = CadenceRcSchema.safeParse(JSON.parse(raw));
+  const parsed = CaderoRcSchema.safeParse(JSON.parse(raw));
   if (!parsed.success) {
-    throw new Error(`.cadencerc is not valid: ${parsed.error.issues[0]?.message ?? "unknown"}`);
+    throw new Error(`.caderorc is not valid: ${parsed.error.issues[0]?.message ?? "unknown"}`);
   }
   return parsed.data;
 }
@@ -1532,7 +1532,7 @@ export async function loadConfig(cwd: string): Promise<CadenceConfig> {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm test --workspace=@cadence/cli && npm run typecheck`
+Run: `npm test --workspace=@cadero/cli && npm run typecheck`
 Expected: intercept + config tests pass, typecheck clean.
 
 - [ ] **Step 5: Commit**
@@ -1549,9 +1549,9 @@ git commit -m "feat(cli): add intercept engine and safelist config"
 - Test: `packages/cli/tests/session.test.ts`
 
 **Interfaces:**
-- Consumes: `createPtySession` (Task 7), `detectIntercept`, `isSafeCommand` (Task 8), `CadenceSocket` (Task 6), `loadConfig` (Task 8), wire-event types from `@cadence/protocol`.
+- Consumes: `createPtySession` (Task 7), `detectIntercept`, `isSafeCommand` (Task 8), `CaderoSocket` (Task 6), `loadConfig` (Task 8), wire-event types from `@cadero/protocol`.
 - Produces (used by Task 10): `class AgentSession` with:
-  - `constructor(opts: { agent: AgentName; command: string; args?: string[]; cwd: string; socket: CadenceSocket; sessionId: string; config: { safeCommands: string[] }; autoApproveText?: string })`
+  - `constructor(opts: { agent: AgentName; command: string; args?: string[]; cwd: string; socket: CaderoSocket; sessionId: string; config: { safeCommands: string[] }; autoApproveText?: string })`
   - `start(): void` — spawns the PTY
   - `stop(): void`
   - Semantics (spec §1.2 + §4): PTY chunk → if an intercept is already pending, buffer the chunk (stream paused); else `detectIntercept` → hit + safe (`isSafeCommand(hit.command, config.safeCommands)`) → auto-approve by writing `autoApproveText ?? "y\r"` into the PTY and forwarding the chunk as `TERMINAL_DATA`; hit + not safe → send `INTERCEPT_REQUIRED` (`agent`, `reason: "EXECUTE_COMMAND"`, `command: hit.command`) and pause the stream (buffer chunks); no hit → forward as `TERMINAL_DATA`.
@@ -1569,7 +1569,7 @@ import { mkdtempSync, rmSync, writeFileSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import type { WireEvent } from "@cadence/protocol";
+import type { WireEvent } from "@cadero/protocol";
 import { AgentSession } from "../src/session.js";
 
 let dir: string | undefined;
@@ -1608,7 +1608,7 @@ function stubAgent(dir: string, body: string): string {
 
 describe("AgentSession", () => {
   it("forwards ordinary output as TERMINAL_DATA", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-sess-"));
     const agent = stubAgent(dir, 'printf "working..."');
     const socket = new FakeSocket();
     const session = new AgentSession({
@@ -1627,7 +1627,7 @@ describe("AgentSession", () => {
   });
 
   it("intercepts a confirmation and auto-approves safe commands", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-sess-"));
     const agent = stubAgent(
       dir,
       'printf "npm test\\nDo you want to proceed? [y/N]"; read -n 1; printf " done"',
@@ -1656,7 +1656,7 @@ describe("AgentSession", () => {
   });
 
   it("raises INTERCEPT_REQUIRED for unsafe commands and resumes on APPROVE", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-sess-"));
     const agent = stubAgent(
       dir,
       'printf "rm -rf ./dist && npm run build\\nDo you want to proceed? [y/N]"; read -n 1; printf " continued"',
@@ -1694,7 +1694,7 @@ describe("AgentSession", () => {
   });
 
   it("writes EXECUTE_AGENT_PROMPT input into the pty", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-sess-"));
     const agent = stubAgent(dir, 'read line; printf "prompted:%s" "$line"');
     const socket = new FakeSocket();
     const session = new AgentSession({
@@ -1725,14 +1725,14 @@ describe("AgentSession", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/cli`
+Run: `npm test --workspace=@cadero/cli`
 Expected: FAIL with "Cannot find module '../src/session.js'".
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```ts
 // packages/cli/src/session.ts
-import type { WireEvent } from "@cadence/protocol";
+import type { WireEvent } from "@cadero/protocol";
 import { createPtySession, type PtySession } from "./pty.js";
 import { detectIntercept, isSafeCommand, type AgentName } from "./intercept.js";
 
@@ -1741,7 +1741,7 @@ export interface AgentSessionOptions {
   command: string;
   args?: string[];
   cwd: string;
-  socket: Pick<import("./socket.js").CadenceSocket, "send"> & {
+  socket: Pick<import("./socket.js").CaderoSocket, "send"> & {
     onEvent(handler: (event: WireEvent) => void): void;
   };
   sessionId: string;
@@ -1838,7 +1838,7 @@ export class AgentSession {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm test --workspace=@cadence/cli && npm run typecheck`
+Run: `npm test --workspace=@cadero/cli && npm run typecheck`
 Expected: all session tests pass; if the PTY timing is tight in CI, raise the poll interval in `FakeSocket.all` — do not add sleeps to production code.
 
 - [ ] **Step 5: Commit**
@@ -1848,7 +1848,7 @@ git add packages/cli/src/session.ts packages/cli/tests/session.test.ts
 git commit -m "feat(cli): add agent session orchestration"
 ```
 
-### Task 10: `cadence-cli` entrypoint (login + start)
+### Task 10: `cadero-cli` entrypoint (login + start)
 
 **Files:**
 - Create: `packages/cli/src/main.ts`
@@ -1856,10 +1856,10 @@ git commit -m "feat(cli): add agent session orchestration"
 - Test: `packages/cli/tests/main.test.ts`
 
 **Interfaces:**
-- Consumes: everything above — `requestDeviceCode`, `pollForAccessToken` (Task 4), `loadCredentials`/`saveCredentials`, `CADENCE_DIR_DEFAULT` (Task 4), `pairSession`, `parsePairingPayload` (Task 5), `CadenceSocket` (Task 6), `AgentSession` (Task 9), `loadConfig` (Task 8), `randomBytes` for session ids.
-- Produces: `runCli(argv: string[], opts?: { env?: NodeJS.ProcessEnv; cadenceDir?: string; cwd?: string; fetchImpl?: typeof fetch; stdout?: (line: string) => void; stderr?: (line: string) => void }): Promise<number>` (exit code); bin `cadence-cli` maps to `dist/main.js` with the self-invocation guard, mapping a thrown error to `stderr` + exit 1. Commands:
-  - `cadence-cli login` — device flow: print user_code + verification_uri to stdout, poll, save credentials to `<cadenceDir>/credentials.json`, print `logged in as saved to <path>`.
-  - `cadence-cli start [--agent claude|opencode] [--relay-url URL]` — requires `CADENCE_RELAY_URL` env or `--relay-url` flag (default `https://relay.cadence.dev` is **not** allowed silently: if neither flag nor env is set, exit 1 with `relay URL required: pass --relay-url or set CADENCE_RELAY_URL`); loads credentials (missing → `not logged in; run: cadence-cli login`, exit 1); pairs (Task 5); renders the QR payload in the terminal via `qrcode.toString(qrPayload, { type: "terminal" })` to stdout followed by the plain payload line; generates `sess_<8hex>` session id; connects `CadenceSocket`; spawns `AgentSession` with `command` = `--agent` value (default `claude`), `cwd` = `process.cwd()`, config from `loadConfig(cwd)`; SIGINT → clean `stop()` + `close()` + exit 0.
+- Consumes: everything above — `requestDeviceCode`, `pollForAccessToken` (Task 4), `loadCredentials`/`saveCredentials`, `CADERO_DIR_DEFAULT` (Task 4), `pairSession`, `parsePairingPayload` (Task 5), `CaderoSocket` (Task 6), `AgentSession` (Task 9), `loadConfig` (Task 8), `randomBytes` for session ids.
+- Produces: `runCli(argv: string[], opts?: { env?: NodeJS.ProcessEnv; caderoDir?: string; cwd?: string; fetchImpl?: typeof fetch; stdout?: (line: string) => void; stderr?: (line: string) => void }): Promise<number>` (exit code); bin `cadero-cli` maps to `dist/main.js` with the self-invocation guard, mapping a thrown error to `stderr` + exit 1. Commands:
+  - `cadero-cli login` — device flow: print user_code + verification_uri to stdout, poll, save credentials to `<caderoDir>/credentials.json`, print `logged in as saved to <path>`.
+  - `cadero-cli start [--agent claude|opencode] [--relay-url URL]` — requires `CADERO_RELAY_URL` env or `--relay-url` flag (default `https://relay.cadero.dev` is **not** allowed silently: if neither flag nor env is set, exit 1 with `relay URL required: pass --relay-url or set CADERO_RELAY_URL`); loads credentials (missing → `not logged in; run: cadero-cli login`, exit 1); pairs (Task 5); renders the QR payload in the terminal via `qrcode.toString(qrPayload, { type: "terminal" })` to stdout followed by the plain payload line; generates `sess_<8hex>` session id; connects `CaderoSocket`; spawns `AgentSession` with `command` = `--agent` value (default `claude`), `cwd` = `process.cwd()`, config from `loadConfig(cwd)`; SIGINT → clean `stop()` + `close()` + exit 0.
   - `--help` / `-h` → usage text, exit 0. Unknown command → usage on stderr, exit 1.
 
 Task 10 note (from Task 4): replace the `CLIENT_ID` placeholder in `ghDevice.ts` with the real GitHub App client ID. The value must be provided by the human partner at merge time; until registered, keep the placeholder constant but make its name scream: `const CLIENT_ID = "REGISTERED_GITHUB_APP_CLIENT_ID_REQUIRED";` — a real device-flow run against GitHub will then fail loudly with `device flow error: unauthorized_client` rather than half-work.
@@ -1890,10 +1890,10 @@ function fakeFetch(routes: Record<string, { status: number; body: unknown }>): t
 
 describe("runCli", () => {
   it("login runs the device flow and saves credentials", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-main-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-main-"));
     const lines: string[] = [];
     const code = await runCli(["login"], {
-      cadenceDir: dir,
+      caderoDir: dir,
       fetchImpl: fakeFetch({
         "https://github.com/login/device/code": {
           status: 200,
@@ -1920,21 +1920,21 @@ describe("runCli", () => {
   });
 
   it("start without credentials exits 1 with guidance", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-main-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-main-"));
     const errs: string[] = [];
     const code = await runCli(["start", "--relay-url", "https://r.example.com"], {
-      cadenceDir: dir,
+      caderoDir: dir,
       stderr: (line) => errs.push(line),
     });
     expect(code).toBe(1);
-    expect(errs.join("\n")).toContain("cadence-cli login");
+    expect(errs.join("\n")).toContain("cadero-cli login");
   });
 
   it("start without a relay URL exits 1", async () => {
-    dir = mkdtempSync(join(tmpdir(), "cadence-main-"));
+    dir = mkdtempSync(join(tmpdir(), "cadero-main-"));
     writeFileSync(join(dir, "credentials.json"), JSON.stringify({ githubToken: "tok" }));
     const errs: string[] = [];
-    const code = await runCli(["start"], { cadenceDir: dir, env: {}, stderr: (l) => errs.push(l) });
+    const code = await runCli(["start"], { caderoDir: dir, env: {}, stderr: (l) => errs.push(l) });
     expect(code).toBe(1);
     expect(errs.join("\n")).toContain("--relay-url");
   });
@@ -1943,14 +1943,14 @@ describe("runCli", () => {
     const out: string[] = [];
     const code = await runCli(["--help"], { stdout: (l) => out.push(l) });
     expect(code).toBe(0);
-    expect(out.join("\n")).toContain("cadence-cli login");
+    expect(out.join("\n")).toContain("cadero-cli login");
   });
 });
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test --workspace=@cadence/cli`
+Run: `npm test --workspace=@cadero/cli`
 Expected: FAIL with "Cannot find module '../src/main.js'".
 
 - [ ] **Step 3: Write minimal implementation**
@@ -1959,38 +1959,38 @@ Expected: FAIL with "Cannot find module '../src/main.js'".
 // packages/cli/src/main.ts
 import { randomBytes } from "node:crypto";
 import { pathToFileURL } from "node:url";
-import { loadCredentials, saveCredentials, CADENCE_DIR_DEFAULT } from "./credentials.js";
+import { loadCredentials, saveCredentials, CADERO_DIR_DEFAULT } from "./credentials.js";
 import { pollForAccessToken, requestDeviceCode } from "./ghDevice.js";
 import { pairSession } from "./pairing.js";
-import { CadenceSocket } from "./socket.js";
+import { CaderoSocket } from "./socket.js";
 import { AgentSession } from "./session.js";
 import { loadConfig } from "./config.js";
 import type { AgentName } from "./intercept.js";
 
 export interface RunOptions {
   env?: NodeJS.ProcessEnv;
-  cadenceDir?: string;
+  caderoDir?: string;
   cwd?: string;
   fetchImpl?: typeof fetch;
   stdout?: (line: string) => void;
   stderr?: (line: string) => void;
 }
 
-const USAGE = `cadence-cli — control local AI agents from your phone
+const USAGE = `cadero-cli — control local AI agents from your phone
 
 Usage:
-  cadence-cli login                          Authenticate with GitHub
-  cadence-cli start [options]                Pair a session and start the agent
+  cadero-cli login                          Authenticate with GitHub
+  cadero-cli start [options]                Pair a session and start the agent
     --agent <claude|opencode>                Agent binary to spawn (default: claude)
-    --relay-url <url>                        Relay base URL (or set CADENCE_RELAY_URL)
-  cadence-cli --help                         Show this help
+    --relay-url <url>                        Relay base URL (or set CADERO_RELAY_URL)
+  cadero-cli --help                         Show this help
 `;
 
 export async function runCli(argv: string[], opts: RunOptions = {}): Promise<number> {
   const out = opts.stdout ?? ((line: string) => console.log(line));
   const err = opts.stderr ?? ((line: string) => console.error(line));
   const env = opts.env ?? process.env;
-  const cadenceDir = opts.cadenceDir ?? CADENCE_DIR_DEFAULT;
+  const caderoDir = opts.caderoDir ?? CADERO_DIR_DEFAULT;
   const cwd = opts.cwd ?? process.cwd();
   const fetchImpl = opts.fetchImpl ?? fetch;
 
@@ -2007,14 +2007,14 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
       interval: device.interval,
       expiresIn: device.expiresIn,
     });
-    await saveCredentials(cadenceDir, { githubToken: token });
-    out(`logged in; credentials saved to ${cadenceDir}/credentials.json`);
+    await saveCredentials(caderoDir, { githubToken: token });
+    out(`logged in; credentials saved to ${caderoDir}/credentials.json`);
     return 0;
   }
 
   if (command === "start") {
     let agent: AgentName = "claude";
-    let relayUrl = env.CADENCE_RELAY_URL ?? "";
+    let relayUrl = env.CADERO_RELAY_URL ?? "";
     for (let i = 0; i < rest.length; i += 1) {
       if (rest[i] === "--agent") {
         agent = rest[i + 1] as AgentName;
@@ -2029,12 +2029,12 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
       return 1;
     }
     if (!relayUrl) {
-      err("relay URL required: pass --relay-url or set CADENCE_RELAY_URL");
+      err("relay URL required: pass --relay-url or set CADERO_RELAY_URL");
       return 1;
     }
-    const creds = await loadCredentials(cadenceDir);
+    const creds = await loadCredentials(caderoDir);
     if (!creds) {
-      err("not logged in; run: cadence-cli login");
+      err("not logged in; run: cadero-cli login");
       return 1;
     }
 
@@ -2048,7 +2048,7 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
     out(`Scan with your phone. Relay: ${relayUrl}  Room: ${roomId}`);
 
     const sessionId = `sess_${randomBytes(8).toString("hex")}`;
-    const socket = new CadenceSocket({
+    const socket = new CaderoSocket({
       relayUrl,
       roomId,
       token: creds.githubToken,
@@ -2107,12 +2107,12 @@ const CLIENT_ID = "REGISTERED_GITHUB_APP_CLIENT_ID_REQUIRED";
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npm run build --workspace=@cadence/cli && npm test --workspace=@cadence/cli && npm test --workspace=@cadence/protocol && npm test --workspace=@cadence/relay && npm run typecheck`
+Run: `npm run build --workspace=@cadero/cli && npm test --workspace=@cadero/cli && npm test --workspace=@cadero/protocol && npm test --workspace=@cadero/relay && npm run typecheck`
 Expected: everything green — this is the Plan 2 exit gate.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add packages/cli/src/main.ts packages/cli/src/ghDevice.ts packages/cli/tests/main.test.ts
-git commit -m "feat(cli): add cadence-cli login and start entrypoint"
+git commit -m "feat(cli): add cadero-cli login and start entrypoint"
 ```
