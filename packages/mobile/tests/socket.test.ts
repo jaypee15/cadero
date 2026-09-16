@@ -158,6 +158,74 @@ describe("MobileSocket against the real relay", () => {
   }, 30000);
 });
 
+describe("onFatal wrong-key close path", () => {
+  it("fires onFatal, closes, and never reconnects when paired with the wrong key", async () => {
+    const store = createRoomStore(redisUrl);
+    const roomId = await store.createRoom();
+    store.disconnect();
+
+    const app = createServer({ redisUrl, verifyUser: async () => "phone" });
+    await app.listen({ port: 0 });
+    const port = (app.server.address() as { port: number }).port;
+    const relayUrl = `http://127.0.0.1:${port}`;
+
+    const sessionKey = await generateSessionKey();
+    const cli = new MobileSocket({
+      relayUrl,
+      roomId,
+      token: "t",
+      sessionKey,
+      WebSocketImpl: WebSocketImpl as unknown as typeof WebSocket,
+      onEvent: () => {},
+      onGap: () => {},
+      onClosed: () => {},
+    });
+    await cli.connect();
+
+    // The phone paired with a DIFFERENT key: the peer's frame cannot decrypt.
+    const events: unknown[] = [];
+    let fatalCount = 0;
+    const phone = new MobileSocket({
+      relayUrl,
+      roomId,
+      token: "t",
+      sessionKey: await generateSessionKey(),
+      WebSocketImpl: WebSocketImpl as unknown as typeof WebSocket,
+      onEvent: (event) => {
+        events.push(event);
+      },
+      onGap: () => {},
+      onClosed: () => {},
+      onFatal: () => {
+        fatalCount += 1;
+      },
+    });
+    await phone.connect();
+
+    await cli.send({
+      event: "TERMINAL_DATA",
+      meta: { session_id: "sess_cli" },
+      payload: { chunk: "hello" },
+    });
+
+    const deadline = Date.now() + 5000;
+    while (fatalCount === 0 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    expect(fatalCount).toBe(1);
+    expect(events).toHaveLength(0);
+
+    // No reconnect: give any (wrongly scheduled) backoff reconnect ample
+    // time, then confirm the socket stays down and silent.
+    await new Promise((r) => setTimeout(r, 2500));
+    const ws = (phone as unknown as { ws?: { readyState: number } }).ws;
+    expect(ws === undefined || ws.readyState === 3).toBe(true);
+
+    await cli.close();
+    await app.close();
+  }, 30000);
+});
+
 describe("envelope header stamping", () => {
   it("stamps a stable per-instance sender and a monotonic seq on every frame", async () => {
     const sent: string[] = [];

@@ -1,7 +1,7 @@
 // packages/mobile/src/state/sessionStore.ts
 import { importSessionKey, type WireEvent } from "@cadero/protocol";
-import { MobileSocket, type MobileSocketOptions } from "../realtime/socket.js";
-import { readStoredToken } from "../app/oauth.js";
+import { MobileSocket, type MobileSocketOptions } from "../realtime/socket";
+import { readStoredToken } from "../app/oauth";
 import {
   GAP_MARKER,
   initialSessionState,
@@ -9,7 +9,7 @@ import {
   type InterceptState,
   type SessionPhase,
   type SessionState,
-} from "./sessionState.js";
+} from "./sessionState";
 
 export interface SocketLike {
   connect(): Promise<void>;

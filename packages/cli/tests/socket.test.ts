@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
+import { mkdtempSync, writeFileSync, chmodSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   exportSessionKey,
   generateSessionKey,
   importSessionKey,
+  type WireEvent,
 } from "@cadero/protocol";
 import { createServer } from "@cadero/relay/server.js";
 import { createRoomStore } from "@cadero/relay/rooms.js";
 import { CaderoSocket, HEARTBEAT_INTERVAL_MS, STALE_AFTER_MS } from "../src/socket.js";
+import { AgentSession } from "../src/session.js";
 
 const redisUrl = "redis://127.0.0.1:6379";
 
@@ -159,6 +164,162 @@ describe("CaderoSocket against the real relay", () => {
     await phone.close();
     await app2.close();
   }, 30000);
+});
+
+describe("onFatal wrong-key close path", () => {
+  it("fires onFatal, closes, and never reconnects when paired with the wrong key", async () => {
+    const store = createRoomStore(redisUrl);
+    const roomId = await store.createRoom();
+    store.disconnect();
+
+    const app = createServer({ redisUrl, verifyUser: async () => "cli" });
+    await app.listen({ port: 0 });
+    const port = (app.server.address() as { port: number }).port;
+    const relayUrl = `http://127.0.0.1:${port}`;
+
+    const sessionKey = await generateSessionKey();
+    const peer = new CaderoSocket({
+      relayUrl,
+      roomId,
+      token: "t",
+      sessionKey,
+      sessionId: "sess_peer",
+    });
+    await peer.connect();
+
+    const cli = new CaderoSocket({
+      relayUrl,
+      roomId,
+      token: "t",
+      sessionKey: await generateSessionKey(),
+      sessionId: "sess_cli",
+      onFatal: () => {
+        fatalCount += 1;
+      },
+    });
+    const events: unknown[] = [];
+    let fatalCount = 0;
+    cli.onEvent((event) => {
+      events.push(event);
+    });
+    await cli.connect();
+
+    await peer.send({
+      event: "TERMINAL_DATA",
+      meta: { session_id: "sess_peer" },
+      payload: { chunk: "hello" },
+    });
+
+    const deadline = Date.now() + 5000;
+    while (fatalCount === 0 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    expect(fatalCount).toBe(1);
+    expect(events).toHaveLength(0);
+    await new Promise((r) => setTimeout(r, 2500));
+    const ws = (cli as unknown as { ws?: { readyState: number } }).ws;
+    expect(ws === undefined || ws.readyState === 3).toBe(true);
+
+    await peer.close();
+    await app.close();
+  }, 30000);
+});
+
+describe("deny path through the relay", () => {
+  it("writes the ESC keystroke into the pty when the phone denies", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cadero-deny-"));
+    const agent = join(dir, "stub-agent.sh");
+    writeFileSync(
+      agent,
+      'printf "rm -rf ./dist\\nDo you want to proceed? [y/N]"; read -rsn1 ch; printf "<%d>" "\'$ch"',
+    );
+    chmodSync(agent, 0o755);
+
+    const store = createRoomStore(redisUrl);
+    const roomId = await store.createRoom();
+    store.disconnect();
+
+    const app = createServer({ redisUrl, verifyUser: async () => "cli" });
+    await app.listen({ port: 0 });
+    const port = (app.server.address() as { port: number }).port;
+    const relayUrl = `http://127.0.0.1:${port}`;
+
+    const sessionKey = await generateSessionKey();
+    const cli = new CaderoSocket({
+      relayUrl,
+      roomId,
+      token: "t",
+      sessionKey,
+      sessionId: "sess_cli",
+    });
+    const phone = new CaderoSocket({
+      relayUrl,
+      roomId,
+      token: "t",
+      sessionKey,
+      sessionId: "sess_phone",
+    });
+    const received: WireEvent[] = [];
+    phone.onEvent((event) => received.push(event));
+    await phone.connect();
+    await cli.connect();
+
+    const cliErrs: string[] = [];
+    const session = new AgentSession({
+      agent: "claude",
+      command: "bash",
+      args: [agent],
+      cwd: dir,
+      socket: cli,
+      sessionId: "sess_cli",
+      config: { safeCommands: [] },
+      interceptTimeoutMs: 15000,
+      onError: (m) => cliErrs.push(m),
+    });
+    const cliSent: string[] = [];
+    const origSend = cli.send.bind(cli);
+    (cli as unknown as { send: (e: WireEvent) => Promise<void> }).send = async (e: WireEvent) => {
+      cliSent.push(e.event);
+      return origSend(e);
+    };
+    session.start();
+
+    const waitUntil = async (pred: () => boolean, timeoutMs: number) => {
+      const deadline = Date.now() + timeoutMs;
+      while (!pred() && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    };
+
+    // The intercept reaches the phone through the real relay; the phone
+    // denies through it, and the ESC keystroke lands in the pty (byte 27).
+    await waitUntil(() => received.some((e) => e.event === "INTERCEPT_REQUIRED"), 10000);
+    expect(received.some((e) => e.event === "INTERCEPT_REQUIRED")).toBe(true);
+    await phone.send({
+      event: "RESOLVE_INTERCEPT",
+      meta: { session_id: "sess_cli" },
+      payload: { decision: "DENY", input_payload: null },
+    });
+    await waitUntil(
+      () =>
+        received.some(
+          (e) =>
+            e.event === "TERMINAL_DATA" &&
+            String((e.payload as { chunk?: string }).chunk).includes("<27>"),
+        ),
+      10000,
+    );
+    const escEcho = received.find(
+      (e) => e.event === "TERMINAL_DATA" && String((e.payload as { chunk?: string }).chunk).includes("<27>"),
+    );
+    expect(escEcho).toBeDefined();
+
+    session.stop();
+    await cli.close();
+    await phone.close();
+    await app.close();
+    rmSync(dir, { recursive: true, force: true });
+  }, 20000);
 });
 
 describe("envelope header stamping", () => {

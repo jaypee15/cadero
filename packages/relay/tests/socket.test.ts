@@ -62,6 +62,71 @@ describe("room routing", () => {
     await app.close();
   }, 15000);
 
+  it("drops an envelope addressed to a different room (routing integrity)", async () => {
+    const store = createRoomStore(redisUrl);
+    const roomId = await store.createRoom();
+    const otherRoom = await store.createRoom();
+    store.disconnect();
+
+    const app = createServer({ redisUrl, verifyUser: async () => "test-user" });
+    await app.listen({ port: 0 });
+    const port = (app.server.address() as AddressInfo).port;
+
+    const sender = new WebSocket(`ws://127.0.0.1:${port}/v1/stream?room_id=${roomId}&token=t1`);
+    const phone = new WebSocket(`ws://127.0.0.1:${port}/v1/stream?room_id=${roomId}&token=t2`);
+    await Promise.all([
+      new Promise((resolve) => sender.once("open", resolve)),
+      new Promise((resolve) => phone.once("open", resolve)),
+    ]);
+    const key = await generateSessionKey();
+
+    // Schema-valid, stamped, but addressed to the OTHER room: the relay must
+    // drop it rather than fan it out to room roomId.
+    const misaddressed = await encryptEnvelope(
+      otherRoom,
+      key,
+      {
+        event: "TERMINAL_DATA",
+        meta: { session_id: "sess_1" },
+        payload: { chunk: "cross-room leak" },
+      },
+      { sender: "cli", seq: 0 },
+    );
+    const received: string[] = [];
+    phone.on("message", (data) => received.push(data.toString()));
+    sender.send(JSON.stringify(misaddressed));
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(received).toHaveLength(0);
+
+    // Sanity: a correctly-addressed frame still gets through on the same
+    // socket (new seq).
+    const onTarget = await encryptEnvelope(
+      roomId,
+      key,
+      {
+        event: "TERMINAL_DATA",
+        meta: { session_id: "sess_1" },
+        payload: { chunk: "in room" },
+      },
+      { sender: "cli", seq: 1 },
+    );
+    const got = new Promise<string>((resolve, reject) => {
+      const deadline = Date.now() + 3000;
+      const poll = () => {
+        if (received.length > 0) return resolve(received[0]);
+        if (Date.now() > deadline) return reject(new Error("no frame received"));
+        setTimeout(poll, 50);
+      };
+      poll();
+    });
+    sender.send(JSON.stringify(onTarget));
+    expect(JSON.parse(await got)).toMatchObject({ room_id: roomId });
+
+    sender.close();
+    phone.close();
+    await app.close();
+  }, 15000);
+
   it("closes the socket with 4403 when redis is unreachable during join", async () => {
     const app = createServer({
       redisUrl: "redis://127.0.0.1:6390",

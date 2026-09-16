@@ -73,7 +73,7 @@ export class AgentSession {
       this.opts.onLocalOutput?.(chunk);
       this.handleChunk(chunk);
     });
-    this.pty.onExit((code) => this.handleExit(code));
+    this.pty.onExit((code) => void this.handleExit(code));
     this.opts.socket.onEvent((event) => this.handleRemote(event));
   }
 
@@ -181,28 +181,32 @@ export class AgentSession {
     }
   }
 
-  private handleExit(code: number): void {
+  private async handleExit(code: number): Promise<void> {
     const tail = this.lineBuffer;
     this.lineBuffer = "";
-    if (tail.length > 0) this.sendTerminal(tail);
+    if (tail.length > 0) await this.sendNow({ event: "TERMINAL_DATA", meta: { session_id: this.opts.sessionId }, payload: { chunk: tail } });
     if (this.pending) {
       this.clearInterceptTimers();
       const flushed = this.buffer;
       this.buffer = "";
       this.pending = undefined;
-      if (flushed.length > 0) this.sendTerminal(flushed);
+      if (flushed.length > 0) {
+        await this.sendNow({ event: "TERMINAL_DATA", meta: { session_id: this.opts.sessionId }, payload: { chunk: flushed } });
+      }
     }
-    this.sendTerminal(`\n[session exited with code ${code}]\n`);
+    await this.sendNow({ event: "TERMINAL_DATA", meta: { session_id: this.opts.sessionId }, payload: { chunk: `\n[session exited with code ${code}]\n` } });
     // Tell the phone the session is over (it reacts with a closed screen and
-    // stops reconnecting), then tear down this side as well.
-    this.trySend({
+    // stops reconnecting). The sends are awaited BEFORE the close: socket
+    // sends are async (encryption) and a synchronous close races them —
+    // the transport silently discards frames queued after close.
+    await this.sendNow({
       event: "SESSION_ENDED",
       meta: { session_id: this.opts.sessionId },
       payload: { code, reason: `agent exited with code ${code}` },
     });
     this.opts.onEnd?.(code);
-    const socket = this.opts.socket as { close?: () => void };
-    if (typeof socket.close === "function") void socket.close();
+    const socket = this.opts.socket as { close?: () => Promise<void> | void };
+    if (typeof socket.close === "function") await socket.close();
     this.pty = undefined;
   }
 
@@ -265,7 +269,13 @@ export class AgentSession {
   }
 
   private trySend(event: WireEvent): void {
-    this.opts.socket.send(event).catch((err: unknown) => {
+    void this.sendNow(event);
+  }
+
+  private async sendNow(event: WireEvent): Promise<void> {
+    try {
+      await this.opts.socket.send(event);
+    } catch (err: unknown) {
       // Frames produced while the relay is reconnecting are dropped (spec §6).
       // The send failure must never crash the daemon or disturb the backoff.
       this.opts.onError?.(
@@ -273,7 +283,7 @@ export class AgentSession {
           err instanceof Error ? err.message : String(err)
         }`,
       );
-    });
+    }
   }
 
   private sendTerminal(chunk: string): void {

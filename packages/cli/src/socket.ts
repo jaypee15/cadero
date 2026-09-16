@@ -156,13 +156,13 @@ export class CaderoSocket {
         timestamp: event.meta.timestamp ?? Math.floor(Date.now() / 1000),
       },
     };
-    const envelope = await encryptEnvelope(
-      this.opts.roomId,
-      this.opts.sessionKey,
-      stamped,
-      { sender: this.sender, seq: this.nextSeq++ },
+    // Encryption is async: assign the replay header only when the frame is
+    // actually placed on the wire, so seq order == wire order (a seq stamped
+    // before an out-of-order await would make the relay drop the frame).
+    const envelope = await encryptEnvelope(this.opts.roomId, this.opts.sessionKey, stamped);
+    ws.send(
+      JSON.stringify({ ...envelope, sender: this.sender, seq: this.nextSeq++ }),
     );
-    ws.send(JSON.stringify(envelope));
   }
 
   async close(): Promise<void> {

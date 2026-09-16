@@ -44,24 +44,28 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
 
 ## Testing gaps
 
-- [ ] `onFatal` (wrong-key) close-path contract test on the relay socket layer —
-  implemented in both `CaderoSocket` and `MobileSocket` but untested against
-  the real relay. (Plan 2/3 tickets; Plan 4 recommendation)
-- [ ] DENY-path keystroke test (`"\u001b"` write resumes/cancels correctly) —
-  session-level only, untested at the socket layer. (Plan 2, Task 9 ledger)
-- [ ] `room_id`-mismatch routing test — an envelope addressed to a different
-  room must be dropped (core routing-integrity rule, Plan 1 socket behavior,
-  still no dedicated test). (Plan 1, Task 7 ledger)
-- [ ] Camera-scan E2E path: the Playwright suite pairs via manual paste; cover
-  the `getUserMedia` + jsQR path with a faked camera stream. (Plan 3 final review)
-- [ ] Staleness soak test under the compose topology: the 45s force-reconnect
-  relies on frames flowing through nginx's 1h `proxy_read_timeout`; half-open
-  TCP detection through the proxy is untested. A suspended-relay soak would
-  close the biggest runtime gap. (Plan 4 final review)
-- [ ] E2E CI wiring: `retries: 1` + explicit reporter in
-  `packages/mobile/playwright.config.ts`, and a CI job (Redis service +
-  `npm run e2e`) so the full-loop test runs on every PR. E2E is currently
-  local-only by design. (Plan 4, Task 10/ledger)
+- [x] `onFatal` (wrong-key) close-path contract test on the relay socket layer —
+  both `CaderoSocket` and `MobileSocket` now covered against the real relay:
+  onFatal fires exactly once, no event crosses, and the socket never
+  reconnects. (DONE 2026-09-16)
+- [x] DENY-path keystroke test at the socket layer (`"\u001b"` write reaches
+  the agent PTY through the real relay). Writing it exposed a real bug: the
+  session's final frames raced the socket close (async encryption vs a
+  synchronous `close()` — the transport silently discarded them); fixed by
+  awaiting the exit flush before closing (`session.ts` `handleExit`).
+  (DONE 2026-09-16)
+- [x] `room_id`-mismatch routing test — an envelope addressed to a different
+  room is dropped (core routing-integrity rule now pinned). (DONE 2026-09-16)
+- [x] Camera-scan E2E path: faked `getUserMedia` (canvas stream rendering a
+  QR of the real pairing payload) drives the PWA's jsQR scanner end to end.
+  (DONE 2026-09-16)
+- [x] Staleness soak test: child relay process SIGSTOP'd mid-session (half-
+  open TCP); the phone recovers via the 45s force-reconnect once the relay
+  resumes. Gated behind `RUN_SOAK=1` (~70s). (DONE 2026-09-16)
+- [x] E2E CI wiring: `retries: 1` + explicit list reporter in
+  `packages/e2e/playwright.config.ts`, and a CI job (Redis service +
+  `npm run e2e`) in `.github/workflows/ci.yml` (unit + e2e jobs, artifact
+  upload on failure). (DONE 2026-09-16)
 - [ ] Real-device PWA validation (iOS Safari PWA install/behavior) beyond the
   headless chromium E2E. (Plan 3 final review)
 

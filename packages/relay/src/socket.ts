@@ -122,7 +122,7 @@ export function registerStreamRoute(
       });
 
       socket.on("close", (code, reason) => {
-        console.log(`[relay-trace] close room=${roomId} code=${code} t=${Date.now() % 100000}`);
+        console.log(`[relay-trace] close room=${roomId} code=${code} origin=${originId.slice(0, 6)} t=${Date.now() % 100000}`);
         resolveReady();
         leaveRoom(roomId, member);
         void subscriber?.quit().catch(() => {});
@@ -196,7 +196,7 @@ export function registerStreamRoute(
         }
         const fromPrefix = typeof (parsed as { from?: unknown }).from === "string" ? String((parsed as { from?: unknown }).from).slice(0, 6) : "?";
         const size = JSON.stringify(parsed).length;
-        console.log(`[relay-trace] inbound room=${roomId} from=${fromPrefix} size=${size} t=${Date.now() % 100000}`);
+        console.log(`[relay-trace] inbound room=${roomId} from=${fromPrefix} origin=${originId.slice(0, 6)} size=${size} t=${Date.now() % 100000}`);
         const envelope = EncryptedEnvelopeSchema.safeParse(parsed);
         if (!envelope.success || envelope.data.room_id !== roomId) {
           request.log.warn(redactForLog(parsed));
