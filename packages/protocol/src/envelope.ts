@@ -1,13 +1,24 @@
 import { z } from "zod";
 import { WireEventSchema, type WireEvent } from "./events.js";
 
+// The replay header (sender id + per-sender monotonic seq) travels as a
+// PLAINTEXT header field: meta is encrypted inside the ciphertext, so the
+// relay could not see it there. The relay requires the header and drops
+// frames whose seq does not advance per (room, sender).
 export const EncryptedEnvelopeSchema = z.object({
   room_id: z.string().min(1),
   iv: z.string().min(1),
   ciphertext: z.string().min(1),
+  sender: z.string().min(1).optional(),
+  seq: z.number().int().nonnegative().optional(),
 });
 
 export type EncryptedEnvelope = z.infer<typeof EncryptedEnvelopeSchema>;
+
+export interface EnvelopeHeader {
+  sender: string;
+  seq: number;
+}
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -54,6 +65,7 @@ export async function encryptRaw(
   roomId: string,
   key: CryptoKey,
   plaintext: string,
+  header?: EnvelopeHeader,
 ): Promise<EncryptedEnvelope> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encoded = await crypto.subtle.encrypt(
@@ -65,6 +77,7 @@ export async function encryptRaw(
     room_id: roomId,
     iv: bytesToBase64Url(iv),
     ciphertext: bytesToBase64Url(new Uint8Array(encoded)),
+    ...(header ? { sender: header.sender, seq: header.seq } : {}),
   };
 }
 
@@ -72,8 +85,9 @@ export async function encryptEnvelope(
   roomId: string,
   key: CryptoKey,
   event: WireEvent,
+  header?: EnvelopeHeader,
 ): Promise<EncryptedEnvelope> {
-  return encryptRaw(roomId, key, JSON.stringify(event));
+  return encryptRaw(roomId, key, JSON.stringify(event), header);
 }
 
 export async function decryptEnvelope(

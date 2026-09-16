@@ -161,6 +161,65 @@ describe("CaderoSocket against the real relay", () => {
   }, 30000);
 });
 
+describe("envelope header stamping", () => {
+  it("stamps a stable per-instance sender and a monotonic seq on every frame", async () => {
+    const store = createRoomStore(redisUrl);
+    const roomId = await store.createRoom();
+    store.disconnect();
+
+    const app = createServer({ redisUrl, verifyUser: async () => "cli" });
+    await app.listen({ port: 0 });
+    const port = (app.server.address() as { port: number }).port;
+
+    const sessionKey = await generateSessionKey();
+    const cli = new CaderoSocket({
+      relayUrl: `http://127.0.0.1:${port}`,
+      roomId,
+      token: "t",
+      sessionKey,
+      sessionId: "sess_cli",
+    });
+    await cli.connect();
+
+    const { default: WebSocket } = await import("ws");
+    const sent: string[] = [];
+    const phone = new WebSocket(`ws://127.0.0.1:${port}/v1/stream?room_id=${roomId}&token=t2`);
+    await new Promise((resolve) => phone.once("open", resolve));
+    phone.on("message", (data) => sent.push(data.toString()));
+
+    await cli.send({
+      event: "TERMINAL_DATA",
+      meta: { session_id: "sess_cli" },
+      payload: { chunk: "one" },
+    });
+    await cli.send({
+      event: "TERMINAL_DATA",
+      meta: { session_id: "sess_cli" },
+      payload: { chunk: "two" },
+    });
+    const envelopes = await new Promise<string[]>((resolve, reject) => {
+      const deadline = Date.now() + 5000;
+      const poll = () => {
+        if (sent.length >= 2) return resolve(sent.splice(0));
+        if (Date.now() > deadline) return reject(new Error("no frames received"));
+        setTimeout(poll, 50);
+      };
+      poll();
+    });
+    expect(envelopes).toHaveLength(2);
+    const first = JSON.parse(envelopes[0]);
+    const second = JSON.parse(envelopes[1]);
+    expect(first.sender).toBeTruthy();
+    expect(second.sender).toBe(first.sender);
+    expect(first.seq).toBe(0);
+    expect(second.seq).toBe(1);
+
+    await cli.close();
+    phone.close();
+    await app.close();
+  }, 15000);
+});
+
 describe("staleness detection", () => {
   it("exports the documented heartbeat cadero", () => {
     expect(HEARTBEAT_INTERVAL_MS).toBe(20000);

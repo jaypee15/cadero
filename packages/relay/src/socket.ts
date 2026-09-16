@@ -22,6 +22,21 @@ interface RoomMember {
 // Redis subscription is confirmed. A publish then waits on that promise for
 // every member present when the frame arrived, which guarantees fanout to
 // sockets connected before the frame was sent.
+//
+// ── Horizontal-scaling design note (do not remove before any scaling work) ──
+// This map is PROCESS-LOCAL by design. With a single relay process, "a member
+// has joined" is observable synchronously and the readiness promise above is
+// exact: publish() waits precisely for the members it can see. With N relay
+// instances behind a load balancer, member state lives in other processes and
+// this promise waits on nothing — frames published before a member's Redis
+// subscription lands are silently lost (the phone shows a GAP banner).
+// A Redis-based scheme would need, per room: an origin/epoch stamp written to
+// Redis when a member joins (e.g. hash `cadero:members:<roomId>` with
+// `<originId> -> <epochMs>`), each publish tagging the frame with the
+// publisher's originId + epoch, and the subscriber path ordering frames by
+// epoch before socket delivery — plus a goroutine-style sweeper removing
+// stale epochs. Do NOT implement this casually: getting it wrong silently
+// drops phone frames, which the staleness detector only notices after 45s.
 const roomMembers = new Map<string, Set<RoomMember>>();
 
 function joinRoom(roomId: string, member: RoomMember): void {
@@ -41,7 +56,29 @@ function leaveRoom(roomId: string, member: RoomMember): void {
   members.delete(member);
   if (members.size === 0) {
     roomMembers.delete(roomId);
+    lastSeenSeq.delete(roomId);
   }
+}
+
+// Replay detection: (roomId -> sender -> last accepted seq). A frame whose
+// seq does not ADVANCE beyond the last accepted one for its sender is a
+// captured-frame replay and is dropped before fanout. The sender id is a
+// random per-socket-instance value stamped by the encrypting peer; the relay
+// never needs to interpret it, only group by it.
+const lastSeenSeq = new Map<string, Map<string, number>>();
+
+function shouldAcceptFrame(roomId: string, sender: string, seq: number): boolean {
+  let perSender = lastSeenSeq.get(roomId);
+  if (!perSender) {
+    perSender = new Map();
+    lastSeenSeq.set(roomId, perSender);
+  }
+  const last = perSender.get(sender);
+  if (last !== undefined && seq <= last) {
+    return false;
+  }
+  perSender.set(sender, seq);
+  return true;
 }
 
 export function registerStreamRoute(
@@ -163,6 +200,17 @@ export function registerStreamRoute(
         const envelope = EncryptedEnvelopeSchema.safeParse(parsed);
         if (!envelope.success || envelope.data.room_id !== roomId) {
           request.log.warn(redactForLog(parsed));
+          return;
+        }
+        // Replay gate: no sender/seq header, or a non-advancing seq for this
+        // sender, means the frame is dropped before it can be fanned out.
+        const { sender, seq } = envelope.data;
+        if (
+          sender === undefined ||
+          seq === undefined ||
+          !shouldAcceptFrame(roomId, sender, seq)
+        ) {
+          request.log.warn(redactForLog(envelope.data));
           return;
         }
         // A transient redis failure must not reject out of an un-awaited

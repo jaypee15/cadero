@@ -23,21 +23,24 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
 
 ## Security & hardening
 
-- [ ] Split the OAuth callback's Redis-failure handling from auth failure:
-  a session-SET failure after the state DEL currently surfaces 401 (state
-  already consumed — user must redo the whole GitHub flow on a transient blip).
-  Map Redis failures to 503 `{ error: "relay unavailable" }`. Narrow window,
-  self-healing on retry. (Plan 4, Task 2 ledger)
-- [ ] Redis-side room readiness for horizontal relay scaling. The Plan 1
-  subscribe-readiness gate (`roomMembers` map in `packages/relay/src/socket.ts`)
-  is single-process by design; fanout ordering across multiple relay instances
-  needs a Redis-based origin/epoch scheme. Documented in-code before any
-  scaling work. (Plan 1, Task 7)
-- [ ] Replay detection: the relay forwards any validly-shaped encrypted frame;
-  a captured frame can be replayed within the room's TTL. Adding a monotonic
-  sequence number to `meta` and tracking last-seen per session gives replay
-  detection alongside gap tracking. Decide if the threat model warrants it.
-  (Plans 3-4 final reviews)
+- [x] Split the OAuth callback's Redis-failure handling from auth failure:
+  the session-SET failure after the state DEL now surfaces 503
+  `{ error: "relay unavailable" }` (state already consumed — retry redoes
+  the whole flow cleanly); GitHub-exchange failures remain 401. Injected
+  `oauthStore` seam in `ServerOptions` for shaping failures in tests.
+  (DONE 2026-09-16; Plan 4, Task 2 ledger)
+- [x] Redis-side room readiness for horizontal relay scaling — design
+  documented in-code at the `roomMembers` gate in
+  `packages/relay/src/socket.ts` (origin/epoch scheme + sweeper + the
+  silent-drop failure mode). Implementation deferred until scaling work
+  actually starts, per the original note. (DONE 2026-09-16; Plan 1, Task 7)
+- [x] Replay detection: plaintext `sender` (random per socket instance) +
+  monotonic `seq` header on `EncryptedEnvelope` (NOT in `meta` — meta is
+  inside the cipher); both sockets stamp on send; the relay drops unstamped
+  and non-advancing frames per (room, sender) before fanout, cleaning up
+  when a room empties. Threat model decided: warranted — the window is the
+  room TTL and captured frames could reorder/duplicate the agent feed.
+  (DONE 2026-09-16; Plans 3-4 final reviews)
 
 ## Testing gaps
 

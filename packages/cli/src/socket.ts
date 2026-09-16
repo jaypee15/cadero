@@ -1,4 +1,5 @@
 import WebSocket from "ws";
+import { randomBytes } from "node:crypto";
 import {
   decryptEnvelope,
   encryptEnvelope,
@@ -34,6 +35,9 @@ export class CaderoSocket {
   private heartbeatTimer: ReturnType<typeof setInterval> | undefined;
   private staleTimer: ReturnType<typeof setInterval> | undefined;
   private lastReceivedAt = Date.now();
+  // Plaintext replay header: stable per instance, monotonic per send.
+  private readonly sender = randomBytes(8).toString("hex");
+  private nextSeq = 0;
 
   constructor(opts: CaderoSocketOptions) {
     this.opts = opts;
@@ -152,7 +156,12 @@ export class CaderoSocket {
         timestamp: event.meta.timestamp ?? Math.floor(Date.now() / 1000),
       },
     };
-    const envelope = await encryptEnvelope(this.opts.roomId, this.opts.sessionKey, stamped);
+    const envelope = await encryptEnvelope(
+      this.opts.roomId,
+      this.opts.sessionKey,
+      stamped,
+      { sender: this.sender, seq: this.nextSeq++ },
+    );
     ws.send(JSON.stringify(envelope));
   }
 

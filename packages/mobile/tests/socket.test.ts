@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import WebSocketImpl from "ws";
 import {
+  decryptEnvelope,
   exportSessionKey,
   generateSessionKey,
   importSessionKey,
@@ -155,6 +156,61 @@ describe("MobileSocket against the real relay", () => {
     await cli.close();
     await app2.close();
   }, 30000);
+});
+
+describe("envelope header stamping", () => {
+  it("stamps a stable per-instance sender and a monotonic seq on every frame", async () => {
+    const sent: string[] = [];
+    const sessionKey = await generateSessionKey();
+    const phone = new MobileSocket({
+      relayUrl: "http://127.0.0.1:1",
+      roomId: "room_x",
+      token: "t",
+      sessionKey,
+      WebSocketImpl: class {
+        readyState = 1;
+        onopen: (() => void) | undefined;
+        onclose: (() => void) | undefined;
+        onmessage: ((m: { data: string }) => void) | undefined;
+        constructor(_url: string) {
+          setTimeout(() => this.onopen?.(), 0);
+        }
+        send(raw: string) {
+          sent.push(raw);
+        }
+        addEventListener() {}
+        close() {}
+      } as unknown as typeof WebSocket,
+      onEvent: () => {},
+      onGap: () => {},
+      onClosed: () => {},
+    });
+    await phone.connect();
+    await phone.send({
+      event: "TERMINAL_RESIZE",
+      meta: { session_id: "mobile" },
+      payload: { cols: 80, rows: 24 },
+    });
+    await phone.send({
+      event: "EXECUTE_AGENT_PROMPT",
+      meta: { session_id: "mobile" },
+      payload: { prompt: "hi" },
+    });
+    expect(sent).toHaveLength(2);
+    const first = JSON.parse(sent[0]);
+    const second = JSON.parse(sent[1]);
+    expect(first.sender).toBeTruthy();
+    expect(second.sender).toBe(first.sender);
+    expect(first.seq).toBe(0);
+    expect(second.seq).toBe(1);
+    // The encrypted payload still round-trips with the header attached.
+    const back = await decryptEnvelope(sessionKey, first);
+    expect(back).toEqual({
+      event: "TERMINAL_RESIZE",
+      meta: { session_id: "mobile", timestamp: expect.any(Number) },
+      payload: { cols: 80, rows: 24 },
+    });
+  });
 });
 
 describe("staleness detection", () => {

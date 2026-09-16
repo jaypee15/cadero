@@ -36,11 +36,16 @@ describe("room routing", () => {
 
     cli.send("this is not json");
     const key = await generateSessionKey();
-    const envelope = await encryptEnvelope(roomId, key, {
-      event: "TERMINAL_DATA",
-      meta: { session_id: "sess_1" },
-      payload: { chunk: "hello phone" },
-    });
+    const envelope = await encryptEnvelope(
+      roomId,
+      key,
+      {
+        event: "TERMINAL_DATA",
+        meta: { session_id: "sess_1" },
+        payload: { chunk: "hello phone" },
+      },
+      { sender: "cli", seq: 0 },
+    );
     const received = once(phone);
     cli.send(JSON.stringify(envelope));
     expect(JSON.parse(await received)).toEqual(envelope);
@@ -74,6 +79,69 @@ describe("room routing", () => {
 
     await app.close();
   }, 30000);
+});
+
+describe("replay protection", () => {
+  it("requires a monotonic per-sender seq header and drops regressions", async () => {
+    const store = createRoomStore(redisUrl);
+    const roomId = await store.createRoom();
+    store.disconnect();
+
+    const app = createServer({ redisUrl, verifyUser: async () => "test-user" });
+    await app.listen({ port: 0 });
+    const port = (app.server.address() as AddressInfo).port;
+
+    const cli = new WebSocket(`ws://127.0.0.1:${port}/v1/stream?room_id=${roomId}&token=t1`);
+    const phone = new WebSocket(`ws://127.0.0.1:${port}/v1/stream?room_id=${roomId}&token=t2`);
+    await Promise.all([
+      new Promise((resolve) => cli.once("open", resolve)),
+      new Promise((resolve) => phone.once("open", resolve)),
+    ]);
+    const key = await generateSessionKey();
+
+    const stamped = async (seq: number, sender: string) =>
+      JSON.stringify({
+        ...(await encryptEnvelope(roomId, key, {
+          event: "TERMINAL_DATA",
+          meta: { session_id: "sess_1" },
+          payload: { chunk: `chunk-${seq}` },
+        })),
+        sender,
+        seq,
+      });
+
+    // Unstamped frames are dropped outright.
+    const unstamped = await encryptEnvelope(roomId, key, {
+      event: "TERMINAL_DATA",
+      meta: { session_id: "sess_1" },
+      payload: { chunk: "unstamped" },
+    });
+    cli.send(JSON.stringify(unstamped));
+
+    // seq 5 arrives.
+    const got5 = once(phone);
+    cli.send(await stamped(5, "sender-a"));
+    expect(JSON.parse(await got5)).toMatchObject({ seq: 5 });
+
+    // Replay of seq 5 and regression to 4 are both dropped.
+    cli.send(await stamped(5, "sender-a"));
+    cli.send(await stamped(4, "sender-a"));
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    // A new seq advances and is delivered again.
+    const got6 = once(phone);
+    cli.send(await stamped(6, "sender-a"));
+    expect(JSON.parse(await got6)).toMatchObject({ seq: 6 });
+
+    // A different sender is tracked independently.
+    const gotB = once(phone);
+    cli.send(await stamped(0, "sender-b"));
+    expect(JSON.parse(await gotB)).toMatchObject({ sender: "sender-b" });
+
+    cli.close();
+    phone.close();
+    await app.close();
+  }, 15000);
 });
 
 describe("close-code contract", () => {

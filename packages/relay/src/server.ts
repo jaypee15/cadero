@@ -18,6 +18,12 @@ export interface ServerOptions {
   redisUrl: string;
   verifyUser?: VerifyUser;
   oauth?: OAuthConfig;
+  // Injectable OAuth session/state store (tests inject a fake to shape
+  // failures). Default: an ioredis client on options.redisUrl.
+  oauthStore?: {
+    del(key: string): Promise<number>;
+    set(key: string, value: string, mode: "EX", ttl: number): Promise<unknown>;
+  };
 }
 
 export function createServer(options: ServerOptions): FastifyInstance {
@@ -91,6 +97,7 @@ export function createServer(options: ServerOptions): FastifyInstance {
     // OAuth state writes/reads fail closed via route handlers; connection
     // errors stay silent here.
   });
+  const oauthStore = options.oauthStore ?? oauthRedis;
 
   app.get("/v1/oauth/login", async (_request, reply) => {
     if (!options.oauth) {
@@ -98,7 +105,7 @@ export function createServer(options: ServerOptions): FastifyInstance {
     }
     const state = randomBytes(16).toString("hex");
     try {
-      await oauthRedis.set(`cadero:oauth:state:${state}`, "1", "EX", OAUTH_STATE_TTL_SECONDS);
+      await oauthStore.set(`cadero:oauth:state:${state}`, "1", "EX", OAUTH_STATE_TTL_SECONDS);
     } catch {
       return reply.code(503).send({ error: "relay unavailable" });
     }
@@ -122,7 +129,7 @@ export function createServer(options: ServerOptions): FastifyInstance {
       }
       let deleted: number;
       try {
-        deleted = await oauthRedis.del(`cadero:oauth:state:${state}`);
+        deleted = await oauthStore.del(`cadero:oauth:state:${state}`);
       } catch {
         return reply.code(503).send({ error: "relay unavailable" });
       }
@@ -133,7 +140,14 @@ export function createServer(options: ServerOptions): FastifyInstance {
         const githubToken = await exchangeOAuthCode(options.oauth, code);
         const login = await verifyGitHubUser(githubToken, options.oauth.fetchImpl);
         const token = `cadero_${randomBytes(16).toString("hex")}`;
-        await oauthRedis.set(`cadero:session:${token}`, login, "EX", SESSION_TTL_SECONDS);
+        // The state was already consumed above: a Redis failure from here on
+        // is an availability problem, not an auth one — 503, and the user
+        // can simply retry the whole flow after the blip.
+        try {
+          await oauthStore.set(`cadero:session:${token}`, login, "EX", SESSION_TTL_SECONDS);
+        } catch {
+          return reply.code(503).send({ error: "relay unavailable" });
+        }
         const target = new URL(options.oauth.appUrl);
         target.hash = `token=${token}`;
         return reply.redirect(target.toString());

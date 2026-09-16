@@ -35,4 +35,39 @@ describe("envelope", () => {
     const envelope = await encryptEnvelope("room_abc", key, event);
     await expect(decryptEnvelope(other, envelope)).rejects.toThrow();
   });
+
+  it("carries the replay header when given (plaintext, outside the cipher)", async () => {
+    const key = await generateSessionKey();
+    const envelope = await encryptEnvelope("room_abc", key, event, {
+      sender: "abc123",
+      seq: 7,
+    });
+    expect(envelope.sender).toBe("abc123");
+    expect(envelope.seq).toBe(7);
+    expect(EncryptedEnvelopeSchema.safeParse(envelope).success).toBe(true);
+    const back = await decryptEnvelope(key, envelope);
+    expect(back).toEqual(event);
+  });
+
+  it("stays schema-valid without a header (back-compat for local producers)", async () => {
+    const key = await generateSessionKey();
+    const envelope = await encryptEnvelope("room_abc", key, event);
+    expect(EncryptedEnvelopeSchema.safeParse(envelope).success).toBe(true);
+  });
+
+  it("rejects invalid replay headers", () => {
+    const base = { room_id: "r", iv: "iv", ciphertext: "ct" };
+    expect(
+      EncryptedEnvelopeSchema.safeParse({ ...base, sender: "", seq: 1 }).success,
+    ).toBe(false);
+    expect(
+      EncryptedEnvelopeSchema.safeParse({ ...base, sender: "s", seq: -1 }).success,
+    ).toBe(false);
+    expect(
+      EncryptedEnvelopeSchema.safeParse({ ...base, sender: "s", seq: 1.5 }).success,
+    ).toBe(false);
+    expect(
+      EncryptedEnvelopeSchema.safeParse({ ...base, sender: "s", seq: 0 }).success,
+    ).toBe(true);
+  });
 });

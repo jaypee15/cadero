@@ -10,6 +10,11 @@ import {
 const BASE_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 30000;
 
+function randomId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export const HEARTBEAT_INTERVAL_MS = 20000;
 export const STALE_AFTER_MS = 45000;
 
@@ -39,6 +44,9 @@ export class MobileSocket {
   private heartbeatTimer: ReturnType<typeof setInterval> | undefined;
   private staleTimer: ReturnType<typeof setInterval> | undefined;
   private lastReceivedAt = Date.now();
+  // Plaintext replay header: stable per instance, monotonic per send.
+  private readonly sender = randomId();
+  private nextSeq = 0;
 
   constructor(opts: MobileSocketOptions) {
     this.opts = opts;
@@ -159,7 +167,12 @@ export class MobileSocket {
         timestamp: event.meta.timestamp ?? Math.floor(Date.now() / 1000),
       },
     };
-    const envelope = await encryptEnvelope(this.opts.roomId, this.opts.sessionKey, stamped);
+    const envelope = await encryptEnvelope(
+      this.opts.roomId,
+      this.opts.sessionKey,
+      stamped,
+      { sender: this.sender, seq: this.nextSeq++ },
+    );
     ws.send(JSON.stringify(envelope));
   }
 
