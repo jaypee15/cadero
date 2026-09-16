@@ -47,6 +47,37 @@ describe("detectIntercept", () => {
   });
 });
 
+describe("opencode interception (probed 1.18.31)", () => {
+  it("catches the permission dialog, extracting the command from the dialog body", () => {
+    const chunk =
+      "STUB-READY\n△ Permission required\n Shell command\n $ echo cadero-probe-marker\n Allow once  Allow always  Reject\n ⇆ select enter confirm";
+    const hit = detectIntercept("opencode", chunk);
+    expect(hit).not.toBeNull();
+    expect(hit!.approveInput).toBe("\r");
+    expect(hit!.prompt).toContain("Permission required");
+    expect(hit!.command).toBe("echo cadero-probe-marker");
+  });
+});
+
+describe("codex (probed 0.148.0)", () => {
+  it("catches the directory trust dialog; Enter confirms preselected Yes", () => {
+    const chunk =
+      "You are in /tmp/work\n Do you trust the contents of this directory? Working with untrusted contents comes with higher risk of prompt injection.\n › 1. Yes, continue  2. No, quit Press enter to continue";
+    const hit = detectIntercept("codex", chunk);
+    expect(hit).not.toBeNull();
+    expect(hit!.approveInput).toBe("\r");
+    expect(hit!.prompt).toContain("trust the contents");
+  });
+
+  it("catches the trust dialog through cursor-positioned output", () => {
+    const chunk =
+      "\u001b[2GYou are in\u001b[12G/tmp/work Do you\u001b[30Gtrust the contents of this directory?";
+    const hit = detectIntercept("codex", chunk);
+    expect(hit).not.toBeNull();
+    expect(hit!.approveInput).toBe("\r");
+  });
+});
+
 describe("isSafeCommand", () => {
   it("matches after whitespace collapsing", () => {
     expect(isSafeCommand("npm  test", ["npm test"])).toBe(true);

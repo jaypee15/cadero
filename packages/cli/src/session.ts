@@ -42,12 +42,17 @@ export class AgentSession {
   // detected across chunks, so incoming output is accumulated here. The
   // buffer never contains a "\n" (complete lines are forwarded promptly).
   private static readonly MAX_HELD_LINE = 8192;
+  // Detection window: the last ~800 chars of streamed output. Multi-line
+  // dialogs (opencode's permission block) span several streamed lines, so
+  // detection needs context beyond a single line.
+  private static readonly MAX_WINDOW = 800;
   private readonly opts: AgentSessionOptions;
   private pty: PtySession | undefined;
   private pending: { command: string; approveInput?: string } | undefined;
   private buffer = "";
   private lineBuffer = "";
   private prevLine = "";
+  private recent = "";
   private timeoutTimer: ReturnType<typeof setTimeout> | undefined;
   private reemitTimer: ReturnType<typeof setInterval> | undefined;
 
@@ -79,15 +84,13 @@ export class AgentSession {
   }
 
   private handleChunk(chunk: string): void {
-    if (this.pending) {
-      this.buffer += chunk;
-      return; // stream paused behind the pending intercept
-    }
+    // Multi-line dialogs (opencode's permission block) span several lines,
+    // and complete lines stream out immediately — so detection runs on a
+    // rolling window of recent FORWARDED output plus the current line.
     const unforwarded = this.lineBuffer + chunk;
-    const prefix = this.prevLine ? `${this.prevLine}\n` : "";
-    const window = prefix + unforwarded;
-    const hit = findIntercept(this.opts.agent, window);
+    const hit = findIntercept(this.opts.agent, this.recent + unforwarded);
     if (hit) {
+      this.recent = "";
       this.lineBuffer = "";
       this.prevLine = "";
       if (isSafeCommand(hit.command, this.opts.config.safeCommands)) {
@@ -97,12 +100,7 @@ export class AgentSession {
       }
       this.pending = { command: hit.command, approveInput: hit.approveInput };
       this.armInterceptTimers();
-      // Flush everything up to and including the matched prompt; anything
-      // after it waits behind the pending intercept.
-      const matchStart = Math.max(0, hit.end - prefix.length);
-      const matched = unforwarded.slice(0, matchStart);
-      this.buffer = unforwarded.slice(matchStart);
-      if (matched.length > 0) this.sendTerminal(matched);
+      if (unforwarded.length > 0) this.sendTerminal(unforwarded);
       this.trySend({
         event: "INTERCEPT_REQUIRED",
         meta: { session_id: this.opts.sessionId },
@@ -118,6 +116,9 @@ export class AgentSession {
     if (nl >= 0) {
       const complete = unforwarded.slice(0, nl + 1);
       this.sendTerminal(complete);
+      // The detection window accumulates only FORWARDED text; the held
+      // partial stays solely in lineBuffer so it is never double-counted.
+      this.recent = (this.recent + complete).slice(-AgentSession.MAX_WINDOW);
       const head = complete.slice(0, -1);
       const prevNl = head.lastIndexOf("\n");
       this.prevLine = prevNl >= 0 ? head.slice(prevNl + 1) : head;
@@ -125,9 +126,10 @@ export class AgentSession {
     } else if (unforwarded.length > AgentSession.MAX_HELD_LINE) {
       // Pathological newline-free stream: flush the overflow so terminal
       // output still streams, keep a bounded context window for detection.
-      const held = unforwarded.slice(unforwarded.length - AgentSession.MAX_HELD_LINE);
-      this.sendTerminal(unforwarded.slice(0, unforwarded.length - AgentSession.MAX_HELD_LINE));
-      this.lineBuffer = held;
+      const forwarded = unforwarded.slice(0, unforwarded.length - AgentSession.MAX_HELD_LINE);
+      this.sendTerminal(forwarded);
+      this.recent = (this.recent + forwarded).slice(-AgentSession.MAX_WINDOW);
+      this.lineBuffer = unforwarded.slice(unforwarded.length - AgentSession.MAX_HELD_LINE);
     } else {
       this.lineBuffer = unforwarded;
     }

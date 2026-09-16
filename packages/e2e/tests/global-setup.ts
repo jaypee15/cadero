@@ -70,6 +70,40 @@ while IFS= read -r line; do
 done
 `;
 
+// Replicates opencode 1.18.31's probe-captured permission dialog
+// ("permission": {"bash": "ask"}): Allow once (preselected) / Allow always /
+// Reject with "enter = confirm".
+const STUB_OPENCODE = `#!/bin/bash
+printf "STUB-READY\\n"
+while IFS= read -r line; do
+  if [[ "$line" == *"danger"* ]]; then
+    printf "△ Permission required\\n Shell command\\n \\$ echo rm -rf ./dist\\n Allow once  Allow always  Reject\\n ⇆ select enter confirm\\n"
+    read -r -n 1 answer
+    printf " approved:%s" "$answer"
+  else
+    printf "ECHO:%s\\n" "$line"
+  fi
+done
+`;
+
+// Replicates codex-cli 0.148.0's probe-captured trust dialog ("Yes, continue"
+// preselected; a bare Enter accepts).
+const STUB_CODEX = `#!/bin/bash
+printf "\\n You are in %s\\n Do you trust the contents of this directory? Working with untrusted contents comes with higher risk of prompt injection.\\n › 1. Yes, continue  2. No, quit  Press enter to continue\\n" "$PWD"
+read -r -n 1 k
+printf " trusted"
+printf "STUB-READY\\n"
+while IFS= read -r line; do
+  printf "ECHO:%s\\n" "$line"
+done
+`;
+
+const AGENT_STUBS: Record<string, string> = {
+  claude: STUB_CLAUDE,
+  opencode: STUB_OPENCODE,
+  codex: STUB_CODEX,
+};
+
 export default async function globalSetup(): Promise<() => Promise<void>> {
   if (!existsSync(cliMain)) {
     throw new Error("packages/cli/dist/main.js missing; build @cadero/cli first");
@@ -87,7 +121,9 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   mkdirSync(projectDir, { recursive: true });
   mkdirSync(stubDir, { recursive: true });
   writeFileSync(join(homeDir, ".cadero", "credentials.json"), JSON.stringify({ githubToken: token }));
-  writeFileSync(join(stubDir, "claude"), STUB_CLAUDE, { mode: 0o755 });
+  for (const [agent, stub] of Object.entries(AGENT_STUBS)) {
+    writeFileSync(join(stubDir, agent), stub, { mode: 0o755 });
+  }
 
   const redis = new Redis("redis://127.0.0.1:6379", { maxRetriesPerRequest: 3 });
   const staticServer = spawn(
@@ -100,13 +136,14 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   staticServer.stderr?.on("data", (chunk: Buffer) => staticLog.push(chunk.toString()));
 
   let app: Awaited<ReturnType<typeof runMain>>["app"] | undefined;
-  let cliPty: import("node-pty").IPty | undefined;
-  const cliLogBuffer: string[] = [];
+  const cliPtys: Array<import("node-pty").IPty> = [];
+  const cliLogBuffers: Record<string, string[]> = {};
 
   const teardown = async (): Promise<void> => {
-    cliPty?.kill();
+    for (const p of cliPtys) p.kill();
+    const joined = Object.values(cliLogBuffers).map((b) => b.join("")).join("\n=== cli ===\n");
     if (process.env.CADERO_E2E_DEBUG) {
-      console.log(`--- CLI PTY stream (redacted) ---\n${redact(cliLogBuffer.join(""))}`);
+      console.log(`--- CLI PTY streams (redacted) ---\n${redact(joined)}`);
     }
     try {
       await app?.close();
@@ -141,75 +178,92 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       }, 50);
     });
 
-    cliPty = pty.spawn(process.execPath, [cliMain, "start", "--agent", "claude", "--relay-url", RELAY_URL], {
-      name: "xterm-256color",
-      cols: 200,
-      rows: 50,
-      cwd: projectDir,
-      env: {
-        ...process.env,
-        HOME: homeDir,
-        PATH: `${stubDir}:${process.env.PATH ?? ""}`,
-        CADERO_GITHUB_CLIENT_ID: "unused",
-      } as { [key: string]: string },
-    });
-    let payload: string | undefined;
-    let cliExit: string | undefined;
-    cliPty.onData((chunk) => {
-      cliLogBuffer.push(chunk);
-      if (!payload) {
-        // Only accept the payload once its line is COMPLETE (the CLI prints
-        // it with a trailing CRLF): a PTY chunk boundary can split the line,
-        // and a truncated capture fails validation downstream.
-        const hit = cliLogBuffer.join("").match(PAYLOAD_PATTERN);
-        if (hit) payload = hit[0].replace(/[\r\n]+$/, "");
-      }
-    });
-    cliPty.onExit(({ exitCode }) => {
-      cliExit = `CLI exited (code ${exitCode}) during setup`;
-    });
-
-    await until(
-      () => {
-        if (cliExit !== undefined) {
-          throw new Error(
-            `${cliExit} before pairing payload.\n--- stream (redacted) ---\n${redact(cliLogBuffer.join(""))}`,
-          );
-        }
-        return payload !== undefined;
-      },
-      "the pairing payload",
-      () => cliLogBuffer.join(""),
-    );
-
-    try {
-      parsePairingPayload(payload as string);
-    } catch (err) {
-      const value = payload as string;
-      throw new Error(
-        `captured pairing payload does not parse (${err instanceof Error ? err.message : String(err)}); ` +
-          `payload length ${value.length}, starts with ${JSON.stringify(value.slice(0, 14))}`,
+    // One CLI session per agent; each pairs to its own room with its own
+    // session key, so every agent's intercept flow is exercised E2E.
+    const payloads: Record<string, string> = {};
+    for (const agent of Object.keys(AGENT_STUBS)) {
+      const logBuffer: string[] = [];
+      cliLogBuffers[agent] = cliLogBuffers[agent] ?? [];
+      const cliPty = pty.spawn(
+        process.execPath,
+        [cliMain, "start", "--agent", agent, "--relay-url", RELAY_URL],
+        {
+          name: "xterm-256color",
+          cols: 200,
+          rows: 50,
+          cwd: projectDir,
+          env: {
+            ...process.env,
+            HOME: homeDir,
+            PATH: `${stubDir}:${process.env.PATH ?? ""}`,
+            CADERO_GITHUB_CLIENT_ID: "unused",
+          } as { [key: string]: string },
+        },
       );
-    }
-    await until(
-      () => {
-        if (cliExit !== undefined) {
-          throw new Error(
-            `${cliExit} before agent session start.\n--- stream (redacted) ---\n${redact(cliLogBuffer.join(""))}`,
-          );
+      cliPtys.push(cliPty);
+      let payload: string | undefined;
+      let cliExit: string | undefined;
+      cliPty.onData((chunk) => {
+        cliLogBuffers[agent].push(chunk);
+        if (!payload) {
+          // Only accept the payload once its line is COMPLETE (the CLI prints
+          // it with a trailing CRLF): a PTY chunk boundary can split the line,
+          // and a truncated capture fails validation downstream.
+          const hit = cliLogBuffers[agent].join("").match(PAYLOAD_PATTERN);
+          if (hit) payload = hit[0].replace(/[\r\n]+$/, "");
         }
-        return /agent 'claude' running/.test(cliLogBuffer.join(""));
-      },
-      "the agent session start",
-      () => cliLogBuffer.join(""),
-    );
+      });
+      cliPty.onExit(({ exitCode }) => {
+        cliExit = `CLI exited (code ${exitCode}) during setup`;
+      });
+
+      await until(
+        () => {
+          if (cliExit !== undefined) {
+            throw new Error(
+              `${cliExit} before pairing payload.\n--- stream (redacted) ---\n${redact(cliLogBuffers[agent].join(""))}`,
+            );
+          }
+          return payload !== undefined;
+        },
+        `the ${agent} pairing payload`,
+        () => cliLogBuffers[agent].join(""),
+      );
+
+      try {
+        parsePairingPayload(payload as string);
+      } catch (err) {
+        const value = payload as string;
+        throw new Error(
+          `captured pairing payload does not parse (${err instanceof Error ? err.message : String(err)}); ` +
+            `payload length ${value.length}, starts with ${JSON.stringify(value.slice(0, 14))}`,
+        );
+      }
+      await until(
+        () => {
+          if (cliExit !== undefined) {
+            throw new Error(
+              `${cliExit} before agent session start.\n--- stream (redacted) ---\n${redact(cliLogBuffers[agent].join(""))}`,
+            );
+          }
+          return new RegExp(`agent '${agent}' running`).test(cliLogBuffers[agent].join(""));
+        },
+        `the ${agent} agent session start`,
+        () => cliLogBuffers[agent].join(""),
+      );
+
+      payloads[agent] = payload as string;
+    }
 
     if (process.env.CADERO_E2E_DEBUG) {
-      console.log(`--- CLI PTY stream (redacted) ---\n${redact(cliLogBuffer.join(""))}`);
+      const joined = Object.values(cliLogBuffers).map((b) => b.join("")).join("\n=== cli ===\n");
+      console.log(`--- CLI PTY streams (redacted) ---\n${redact(joined)}`);
     }
 
     process.env.CADERO_E2E_TOKEN = token;
-    process.env.CADERO_E2E_PAYLOAD = payload as string;
+    process.env.CADERO_E2E_PAYLOAD = payloads.claude;
+    process.env.CADERO_E2E_PAYLOAD_OPENCODE = payloads.opencode;
+    process.env.CADERO_E2E_PAYLOAD_CODEX = payloads.codex;
 
     return teardown;
   } catch (err) {

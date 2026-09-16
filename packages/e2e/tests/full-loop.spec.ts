@@ -8,9 +8,45 @@ import { expect, test, type Page } from "@playwright/test";
 const E2E_TOKEN = process.env.CADERO_E2E_TOKEN as string;
 const PAYLOAD = process.env.CADERO_E2E_PAYLOAD as string;
 
-async function pair(page: Page): Promise<void> {
+async function pair(page: Page, payload: string = PAYLOAD): Promise<void> {
+  // TEMP DIAGNOSTIC: log ws frames received by the page + forward the app's
+  // [e2e-trace] console lines.
+  page.on("console", (message) => {
+    if (message.text().startsWith("[e2e-trace]")) {
+      console.log(`[page] ${message.text()}`);
+    }
+  });
+  page.on("websocket", (ws) => {
+    console.log(`[ws-trace] ws opened: ${ws.url()}`);
+    ws.on("framereceived", (data) => {
+      const text = typeof data === "string" ? data : String(data);
+      const decoded = (() => {
+        try {
+          const j = JSON.parse(text) as { event?: string };
+          return j.event ?? "encrypted";
+        } catch {
+          return "unparsed";
+        }
+      })();
+      console.log(`[ws-trace] received event=${decoded}`);
+    });
+    ws.on("framesent", (data) => {
+      const text = typeof data === "string" ? data : String(data);
+      const event = (() => {
+        try {
+          const j = JSON.parse(text) as { event?: string };
+          return `sent-event=${j.event ?? "envelope"}`;
+        } catch {
+          return "sent=envelope";
+        }
+      })();
+      if (event.includes("EXECUTE") || event.includes("RESOLVE") || event.includes("TERMINAL_RESIZE")) {
+        console.log(`[ws-trace] ${event}`);
+      }
+    });
+  });
   await page.goto(`/?token-not-used#token=${E2E_TOKEN}`);
-  await page.getByPlaceholder(/paste the pairing payload/i).fill(PAYLOAD);
+  await page.getByPlaceholder(/paste the pairing payload/i).fill(payload);
   await page.getByRole("button", { name: /pair manually/i }).click();
   const prompt = page.getByPlaceholder(/prompt the agent/i);
   // The prompt input only enables once the session is live; fill and the
@@ -61,4 +97,42 @@ test("intercept overlay approves a dangerous command", async ({ page }) => {
   await expect(page.locator("pre").filter({ hasText: "rm -rf ./dist" })).toBeVisible();
   await page.getByRole("button", { name: /approve/i }).click();
   await expectTerminalText(page, "APPROVED-RESULT", 30000);
+});
+
+const PAYLOAD_OPENCODE = process.env.CADERO_E2E_PAYLOAD_OPENCODE as string;
+
+test("opencode: permission dialog surfaces on the phone and approves", async ({ page }) => {
+  await pair(page, PAYLOAD_OPENCODE);
+  const prompt = page.getByPlaceholder(/prompt the agent/i);
+  await prompt.fill("danger");
+  await prompt.press("Enter");
+  // The overlay shows the extracted command from opencode's dialog; the
+  // dialog is a selection list (Allow once / Allow always / Reject) and
+  // approval is a bare Enter, which the stub echoes with the key received.
+  await expect(page.getByRole("button", { name: /approve/i })).toBeVisible({ timeout: 30000 });
+  await expect(
+    page.locator("pre").filter({ hasText: "echo rm -rf ./dist" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /approve/i }).click();
+  await expectTerminalText(page, " approved:", 30000);
+});
+
+const PAYLOAD_CODEX = process.env.CADERO_E2E_PAYLOAD_CODEX as string;
+
+test("codex: trust dialog surfaces on the phone and approves", async ({ page }) => {
+  await pair(page, PAYLOAD_CODEX);
+  // The codex stub prints its trust dialog at spawn — before the phone
+  // joined — so the overlay arrives via the CLI's periodic re-emission.
+  // The overlay shows the extracted context (the directory line).
+  await expect(page.getByRole("button", { name: /approve/i })).toBeVisible({ timeout: 30000 });
+  await expect(
+    page.locator("pre").filter({ hasText: "You are in" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /approve/i }).click();
+  // Codex's trust dialog is a selection list: approval is a bare Enter.
+  await expectTerminalText(page, "STUB-READY", 30000);
+  const prompt = page.getByPlaceholder(/prompt the agent/i);
+  await prompt.fill("hello codex");
+  await prompt.press("Enter");
+  await expectTerminalText(page, "ECHO:hello codex", 30000);
 });

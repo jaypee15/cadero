@@ -26,7 +26,7 @@ const USAGE = `cadero-cli — control local AI agents from your phone
 Usage:
   cadero-cli login                          Authenticate with GitHub
   cadero-cli start [options]                Pair a session and start the agent
-    --agent <claude|opencode>                Agent binary to spawn (default: claude)
+    --agent <claude|opencode|codex>          Agent binary to spawn (default: claude)
     --relay-url <url>                        Relay base URL (or set CADERO_RELAY_URL)
   cadero-cli --help                         Show this help
 `;
@@ -79,8 +79,8 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
         i += 1;
       }
     }
-    if (agent !== "claude" && agent !== "opencode") {
-      err(`unknown agent '${agent}' (use claude or opencode)`);
+    if (agent !== "claude" && agent !== "opencode" && agent !== "codex") {
+      err(`unknown agent '${agent}' (use claude, opencode, or codex)`);
       return 1;
     }
     if (!relayUrl) {

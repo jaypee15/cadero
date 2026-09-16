@@ -1,4 +1,4 @@
-export type AgentName = "claude" | "opencode";
+export type AgentName = "claude" | "opencode" | "codex";
 
 interface PatternDefinition {
   pattern: RegExp;
@@ -8,6 +8,12 @@ interface PatternDefinition {
    * Enter; text prompts take "y\r".
    */
   approveInput?: string;
+  /**
+   * Extracts the actionable command from the matched dialog text (the match
+   * may span multiple lines for multi-line dialogs). Without one, the line
+   * before the match is used.
+   */
+  commandPattern?: RegExp;
 }
 
 const CLAUDE_PATTERNS: PatternDefinition[] = [
@@ -32,7 +38,34 @@ const CLAUDE_PATTERNS: PatternDefinition[] = [
 const OPENCODE_PATTERNS: PatternDefinition[] = [
   { pattern: /waiting for (your )?input[^\n]*/i },
   { pattern: /\[Y\/n\][^\n]*/i },
+  {
+    // opencode's permission dialog (probe-verified 1.18.31 with
+    // "permission": {"bash": "ask"}): "Permission required · Shell command ·
+    // $ <cmd>" with Allow once (preselected, white) / Allow always / Reject
+    // and "enter = confirm" — Enter accepts "Allow once". The command is
+    // extracted from the dialog's "$ <cmd>" line.
+    pattern: /Permission required[\s\S]{0,400}Allow once/i,
+    commandPattern: /\$\s+([^\n]+)/,
+    approveInput: "\r",
+  },
 ];
+
+const CODEX_PATTERNS: PatternDefinition[] = [
+  {
+    // Codex's first-run directory trust dialog (probe-verified 0.148.0):
+    // "› 1. Yes, continue  2. No, quit  Press enter to continue" — Yes is
+    // preselected, so a bare Enter accepts.
+    pattern: /Do you trust the contents of this directory\?[^\n]*/i,
+    approveInput: "\r",
+  },
+  { pattern: /Press enter to continue[^\n]*/i, approveInput: "\r" },
+];
+
+const AGENT_PATTERNS: Record<AgentName, PatternDefinition[]> = {
+  claude: CLAUDE_PATTERNS,
+  opencode: OPENCODE_PATTERNS,
+  codex: CODEX_PATTERNS,
+};
 
 export interface InterceptHit {
   prompt: string;
@@ -63,7 +96,7 @@ export function findIntercept(
   agent: AgentName,
   text: string,
 ): InterceptMatch | null {
-  const patterns = agent === "claude" ? CLAUDE_PATTERNS : OPENCODE_PATTERNS;
+  const patterns = AGENT_PATTERNS[agent];
   // TUIs (claude uses Ink) position every word with absolute cursor moves
   // ("Quick\x1b[8Gsafety\x1b[15Gcheck:…"), so detection runs on a normalized
   // view: cursor movements become the spaces they visually imply, other
@@ -72,11 +105,12 @@ export function findIntercept(
     .replace(/\x1b\[[0-9;]*[ABCDG]/g, " ")
     .replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "")
     .replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)/g, "");
-  for (const { pattern, approveInput } of patterns) {
+  for (const { pattern, approveInput, commandPattern } of patterns) {
     const match = normalized.match(pattern);
     if (match && match.index !== undefined) {
       const prompt = trim500(match[0]);
-      const command = extractCommand(normalized, match.index) || prompt;
+      const extracted = commandPattern ? prompt.match(commandPattern)?.[1] : undefined;
+      const command = trim500(extracted ?? "") || extractCommand(normalized, match.index) || prompt;
       return { prompt, command, approveInput, end: match.index + match[0].length };
     }
   }

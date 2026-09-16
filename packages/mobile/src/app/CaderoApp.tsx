@@ -102,6 +102,7 @@ export function CaderoApp() {
           token,
           sessionKey,
           onEvent: (event) => {
+            console.log("[e2e-trace] received", event.event);
             if (event.event === "TERMINAL_DATA") {
               termRef.current?.write(event.payload.chunk);
             }
@@ -113,6 +114,7 @@ export function CaderoApp() {
             dispatchIfOpen({ type: "EVENT", event });
           },
           onGap: () => {
+            console.log("[e2e-trace] GAP fired");
             termRef.current?.write(GAP_MARKER);
             dispatchIfOpen({ type: "GAP" });
             // Re-assert the viewport after a reconnect gap: a resize frame
@@ -218,6 +220,7 @@ export function CaderoApp() {
   );
 
   const sendPrompt = useCallback(async (prompt: string) => {
+    console.log("[e2e-trace] sendPrompt:", prompt);
     const socket = socketRef.current;
     if (!socket) return;
     try {
@@ -255,6 +258,7 @@ export function CaderoApp() {
   // the CLI sees and the agent never draws at the wrong width. While pairing
   // or closed it is invisible but still sized to the real viewport.
   const live = state.phase === "live" || state.phase === "connecting";
+  const debug = new URLSearchParams(window.location.search).has("debug");
 
   return (
     <>
@@ -280,6 +284,15 @@ export function CaderoApp() {
           disabled={state.intercept !== null || state.phase !== "live"}
           onSend={(p) => void sendPrompt(p)}
         />
+        {debug && (
+          <div
+            data-debug-status="true"
+            className="border-t border-slate-700 bg-slate-950 px-3 py-1 text-center text-[10px] text-slate-500"
+          >
+            frames: {state.chunkCount} · phase: {state.phase} · gapped: {String(state.gapped)}
+            {state.intercept ? " · intercept pending" : ""}
+          </div>
+        )}
       </div>
       {state.phase === "need-pairing" && (
         <main className="fixed inset-0 z-10 flex min-h-dvh flex-col items-center justify-center gap-6 bg-slate-900 p-6">

@@ -16,7 +16,7 @@ export const InterceptRequiredSchema = z.object({
   event: z.literal("INTERCEPT_REQUIRED"),
   meta: metaSchema,
   payload: z.object({
-    agent: z.enum(["claude", "opencode"]),
+    agent: z.enum(["claude", "opencode", "codex"]),
     reason: z.string().min(1),
     command: z.string(),
   }),

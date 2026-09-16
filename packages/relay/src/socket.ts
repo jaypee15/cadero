@@ -56,6 +56,7 @@ export function registerStreamRoute(
       const roomId = request.query.room_id ?? "";
       const token = request.query.token ?? "";
       const store = createRoomStore(redisUrl);
+      console.log(`[relay-trace] join room=${roomId} t=${Date.now() % 100000}`);
 
       // Frames can arrive as soon as the upgrade completes, before the async
       // setup below finishes, so the listener is attached synchronously and
@@ -83,7 +84,8 @@ export function registerStreamRoute(
         }
       });
 
-      socket.on("close", () => {
+      socket.on("close", (code, reason) => {
+        console.log(`[relay-trace] close room=${roomId} code=${code} t=${Date.now() % 100000}`);
         resolveReady();
         leaveRoom(roomId, member);
         void subscriber?.quit().catch(() => {});
@@ -132,6 +134,7 @@ export function registerStreamRoute(
         if (parsed.from === originId || typeof parsed.frame !== "string") {
           return;
         }
+        console.log(`[relay-trace] fanout room=${roomId} t=${Date.now() % 100000}`);
         if (socket.readyState === 1) {
           socket.send(parsed.frame);
         }
@@ -154,6 +157,9 @@ export function registerStreamRoute(
           request.log.warn(redactForLog({ room_id: roomId }));
           return;
         }
+        const fromPrefix = typeof (parsed as { from?: unknown }).from === "string" ? String((parsed as { from?: unknown }).from).slice(0, 6) : "?";
+        const size = JSON.stringify(parsed).length;
+        console.log(`[relay-trace] inbound room=${roomId} from=${fromPrefix} size=${size} t=${Date.now() % 100000}`);
         const envelope = EncryptedEnvelopeSchema.safeParse(parsed);
         if (!envelope.success || envelope.data.room_id !== roomId) {
           request.log.warn(redactForLog(parsed));

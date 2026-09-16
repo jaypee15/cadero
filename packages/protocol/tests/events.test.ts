@@ -81,4 +81,23 @@ describe("WireEventSchema", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("accepts INTERCEPT_REQUIRED for every supported agent", () => {
+    for (const agent of ["claude", "opencode", "codex"] as const) {
+      expect(
+        WireEventSchema.safeParse({
+          event: "INTERCEPT_REQUIRED",
+          meta: { session_id: "sess_1" },
+          payload: { agent, reason: "EXECUTE_COMMAND", command: "npm test" },
+        }).success,
+      ).toBe(true);
+    }
+    expect(
+      WireEventSchema.safeParse({
+        event: "INTERCEPT_REQUIRED",
+        meta: { session_id: "sess_1" },
+        payload: { agent: "gemini", reason: "EXECUTE_COMMAND", command: "x" },
+      }).success,
+    ).toBe(false);
+  });
 });
