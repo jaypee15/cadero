@@ -1,19 +1,11 @@
 // packages/mobile/tests/landing.test.tsx
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import Home from "../src/app/page.js";
 import { shouldForwardToApp } from "../src/app/HashForward.js";
 import AppPage from "../src/app/app/page.js";
 
 // jsdom cannot run real xterm; the /app test waits for its async import.
-vi.stubGlobal(
-  "ResizeObserver",
-  class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  },
-);
 vi.mock("@xterm/xterm", () => ({
   Terminal: class {
     write() {}
@@ -29,6 +21,17 @@ vi.mock("@xterm/addon-fit", () => ({
     dispose() {}
   },
 }));
+
+beforeEach(() => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+});
 
 afterEach(() => {
   cleanup();
