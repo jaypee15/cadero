@@ -7,6 +7,7 @@ import "@xterm/xterm/css/xterm.css";
 
 export interface TerminalApi {
   write(chunk: string): void;
+  clear(): void;
   fit(): void;
   dispose(): void;
 }
@@ -57,6 +58,7 @@ export function TerminalView({
       observer.observe(hostRef.current);
       onReady({
         write: (chunk) => term.write(chunk),
+        clear: () => term.reset(),
         fit: () => fitAddon.fit(),
         dispose: () => {
           observer?.disconnect();

@@ -1,6 +1,6 @@
 # Cadero Deferred Follow-ups (Backlog)
 
-Maintained: 2026-09-08 | Source: Plans 1-4 final-review triage lists and per-task ledgers (see `docs/superpowers/plans/`).
+Maintained: 2026-09-16 | Source: Plans 1-4 final-review triage lists and per-task ledgers (see `docs/superpowers/plans/`).
 
 This file is the durable record of work that was triaged as "ride" during the
 four implementation plans and not merged with the MVP. Each item lists the plan
@@ -87,14 +87,16 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
   and auto-imports after GitHub sign-in — native phone cameras would then
   complete pairing in one scan (needs PWA hash handling + OAuth redirect
   preserving the pairing payload). (Session feedback 2026-09-15)
-- [ ] Multi-session switcher: two `cadero-cli start` instances (two
-  terminals/codebases) create two isolated rooms — the phone pairs to one
-  at a time; switching today = reload the PWA + re-scan the other QR (two
-  tabs also work, one session each). Design constraint: the relay can never
-  re-deliver a session key (zero-knowledge), so a one-UI switcher means the
-  phone holds keys for multiple paired rooms in memory with a room picker,
-  or rooms re-issue QRs per switch. Needs a design pass. (Session feedback
-  2026-09-15)
+- [x] Multi-session switcher (DONE 2026-09-16, superseding the original design
+  constraints): the phone holds **all paired rooms connected concurrently** —
+  every room gets its own `MobileSocket` with heartbeat/staleness/auto-
+  reconnect, per-room terminal buffers, and a room tab bar with
+  pending-approval badges. Sessions persist in **sessionStorage** (raw key
+  material, restored on load; cleared when the tab closes). Zero-knowledge
+  posture unchanged: the relay still never sees any key — the trade is that
+  keys now rest in per-tab browser storage (documented in
+  `packages/mobile/src/app/oauth.ts`). Store: `packages/mobile/src/state/sessionStore.ts`
+  (14 unit tests); UI tabs/refill/routing: `CaderoApp.tsx` (5 component tests).
 - [ ] Parked: opencode E2E final assertion is intermittent — the phone's
   terminal intermittently misses the approval echo (" approved:") after the
   overlay's Approve tap, while the CLI side mirrors it correctly. The
