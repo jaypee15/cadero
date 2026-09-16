@@ -1,10 +1,10 @@
-# Cadence MVP Design (v0.1)
+# Cadero MVP Design (v0.1)
 
 Date: 2026-09-07 | Status: Draft for review | Approach: A, production-grade, no fallback scaffolding
 
 ## 1. Context and goal
 
-Cadence is an open-source, self-hostable remote orchestrator for local AI coding
+Cadero is an open-source, self-hostable remote orchestrator for local AI coding
 agents (Claude Code, OpenCode). A local CLI daemon spawns the agent under a
 pseudo-terminal, a cloud relay routes frames between the desktop and a mobile
 browser, and a mobile PWA renders the terminal and collects approvals. Full
@@ -21,17 +21,17 @@ would need cleanup later. First terminal bytes arrive late; that is accepted.
 In scope for v0.1:
 
 - `packages/protocol`: zod-validated schemas plus shared TypeScript types.
-- `packages/cli` (`@cadence/cli`): node-pty spawn of `claude` and `opencode`,
-  stdout intercept engine, `.cadencerc` safelist, outbound WSS only,
+- `packages/cli` (`@cadero/cli`): node-pty spawn of `claude` and `opencode`,
+  stdout intercept engine, `.caderorc` safelist, outbound WSS only,
   encrypt-then-send, terminal QR render.
-- `packages/relay` (`@cadence/relay`): Fastify plus websocket plugin, GitHub
+- `packages/relay` (`@cadero/relay`): Fastify plus websocket plugin, GitHub
   OAuth, Redis room registry with TTL plus pub/sub fanout, zero-retention
   routing.
-- `packages/mobile` (`@cadence/mobile`): Next.js App Router SSG plus Tailwind,
+- `packages/mobile` (`@cadero/mobile`): Next.js App Router SSG plus Tailwind,
   xterm.js plus fit addon, WebCrypto decrypt in memory, prompt input, binary
   approval overlay.
 - Root `docker-compose.yml`: relay plus Redis plus static mobile build for
-  self-host. `CADENCE_RELAY_URL` overrides the public cloud.
+  self-host. `CADERO_RELAY_URL` overrides the public cloud.
 
 Non-goals: multi-room per user, team sharing, session history or replay,
 plaintext transport mode, Windows support (v0.1 targets macOS plus Linux).
@@ -67,13 +67,13 @@ the reason with the payload redacted.
 
 Outbound WSS client only; it never opens a listening socket, so no home-router
 configuration is needed. On start it spawns the selected agent under node-pty
-(`xterm-256color`, 80x24, `FORCE_COLOR=3`, `CADENCE_ACTIVE=true`, cwd is the
+(`xterm-256color`, 80x24, `FORCE_COLOR=3`, `CADERO_ACTIVE=true`, cwd is the
 invoking directory). Stdout chunks pass through the intercept engine:
 
 - No prompt signature match: wrap as `TERMINAL_DATA`, encrypt, send.
 - Prompt signature match (Claude confirmation text, OpenCode waiting
   markers): pause forwarding of that chunk, emit `INTERCEPT_REQUIRED`.
-- Safelist hit (command matches an entry in local `.cadencerc`): write the
+- Safelist hit (command matches an entry in local `.caderorc`): write the
   approval directly into the pty and never notify mobile.
 
 Security invariant: the daemon never executes raw shell from the network. The
@@ -149,8 +149,8 @@ Intercept pauses the stream, the overlay collects the decision, and
 ## 8. Deployment
 
 `docker-compose.yml` stands up the relay, Redis, and the statically built
-mobile UI. Self-hosters set `CADENCE_RELAY_URL` to their own domain. Public
-cloud onboarding stays as specified: `npx cadence-cli login` on the dev
+mobile UI. Self-hosters set `CADERO_RELAY_URL` to their own domain. Public
+cloud onboarding stays as specified: `npx cadero-cli login` on the dev
 machine, then scan the terminal QR with the phone to join the session room.
 
 ## 9. Open decisions
