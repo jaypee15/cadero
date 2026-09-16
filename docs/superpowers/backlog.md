@@ -96,6 +96,17 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
   phone holds keys for multiple paired rooms in memory with a room picker,
   or rooms re-issue QRs per switch. Needs a design pass. (Session feedback
   2026-09-15)
+- [ ] Parked: opencode E2E final assertion is intermittent — the phone's
+  terminal intermittently misses the approval echo (" approved:") after the
+  overlay's Approve tap, while the CLI side mirrors it correctly. The
+  always-mounted TerminalView's refit after the phase transition is the
+  prime suspect (the received frames arrive per the ws instrumentation —
+  trace logs saved in /tmp/e2e*.log, instrumentation included: relay
+  join/publish traces, page console capture, a ?debug=1 status element in
+  the PWA). The real-device flow worked when the dialog was approved, so
+  this is a CI-coverage gap, not a phone-flow blocker. Next step: phone-side
+  frame-count instrumentation (?debug=1 status element) to pin the failing
+  layer. (Session feedback 2026-09-15)
 - [ ] Attach to an agent session started *outside* Cadero (plain `claude` in
   a normal terminal): currently impossible by design — the daemon must own
   the PTY from process start to intercept prompts, mirror output, and sync
