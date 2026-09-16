@@ -21,6 +21,9 @@ export interface RunOptions {
   isTTY?: boolean;
 }
 
+/** Spec: agent output stays hidden this long so the QR stays scannable. */
+const MIRROR_GRACE_MS = 60000;
+
 const USAGE = `cadero — control local AI agents from your phone
 
 Usage:
@@ -105,6 +108,19 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
     }
     const interceptTimeoutMs =
       interceptTimeoutRaw !== undefined ? Number(interceptTimeoutRaw) : INTERCEPT_TIMEOUT_MS;
+    // How long the CLI holds agent output back so the pairing QR stays
+    // readable (first-run phone pairing includes GitHub sign-in, which can
+    // take a while — raise this if you pair slowly).
+    const mirrorGraceRaw = env.CADERO_MIRROR_GRACE_MS;
+    if (mirrorGraceRaw !== undefined) {
+      const parsed = Number(mirrorGraceRaw);
+      if (!Number.isInteger(parsed) || parsed <= 0) {
+        err("CADERO_MIRROR_GRACE_MS must be a positive integer (milliseconds)");
+        return 1;
+      }
+    }
+    const mirrorGraceMs =
+      mirrorGraceRaw !== undefined ? Number(mirrorGraceRaw) : MIRROR_GRACE_MS;
 
     const { roomId, sessionKey, qrPayload } = await pairSession(
       relayUrl,
@@ -163,7 +179,6 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
     // Hold the local mirror until the phone joins (its first resize frame) or
     // a grace period elapses — otherwise the agent's full-screen TUI floods
     // the terminal and destroys the QR the operator still needs to scan.
-    const MIRROR_GRACE_MS = 60000;
     let mirroring = false;
     const held: string[] = [];
     // The mirrored stream is a passive viewer: the agent's terminal queries
@@ -193,11 +208,17 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
       err(reason);
       for (const chunk of held.splice(0)) process.stdout.write(stripHousekeeping(chunk));
     };
+    const graceSeconds = Math.round(mirrorGraceMs / 1000);
+    err(
+      `waiting for a phone to pair — agent output stays hidden for ${graceSeconds}s, ` +
+        `then it appears here (the QR and pairing payload remain in the lines above)`,
+    );
     const mirrorGrace = setTimeout(() => {
       startMirroring(
-        "no phone paired after 60s — showing agent output here; the QR payload remains in the lines above",
+        `no phone paired after ${graceSeconds}s — showing agent output here; ` +
+          `pairing still works (the QR and payload remain in the lines above)`,
       );
-    }, MIRROR_GRACE_MS);
+    }, mirrorGraceMs);
 
     const session = new AgentSession({
       agent,

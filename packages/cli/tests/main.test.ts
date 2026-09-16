@@ -113,6 +113,19 @@ describe("runCli", () => {
     expect(errs.join("\n")).toContain("--relay-url");
   });
 
+  it("start with an invalid CADERO_MIRROR_GRACE_MS exits 1 before pairing", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadero-main-"));
+    writeFileSync(join(dir, "credentials.json"), JSON.stringify({ githubToken: "tok" }));
+    const errs: string[] = [];
+    const code = await runCli(["start", "--relay-url", "https://r.example.com"], {
+      caderoDir: dir,
+      env: { CADERO_MIRROR_GRACE_MS: "banana" },
+      stderr: (l) => errs.push(l),
+    });
+    expect(code).toBe(1);
+    expect(errs.join("\n")).toContain("CADERO_MIRROR_GRACE_MS");
+  });
+
   it("help exits 0 and prints usage", async () => {
     const out: string[] = [];
     const code = await runCli(["--help"], { stdout: (l) => out.push(l) });

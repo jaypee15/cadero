@@ -61,6 +61,7 @@ fact.
 | `CADERO_GITHUB_CLIENT_ID` | CLI env | GitHub OAuth app client id for `cadero login` |
 | `CADERO_RELAY_URL` | CLI flag/env | Relay base URL (default: required at start) |
 | `CADERO_INTERCEPT_TIMEOUT_MS` | CLI env | Intercept timeout override (default 900000 = 15 min) |
+| `CADERO_MIRROR_GRACE_MS` | CLI env | How long the terminal keeps agent output hidden so the QR stays scannable (default 60000 = 60s; raise it if your first-run phone pairing takes longer) |
 | `--agent <claude\|opencode\|codex>` | CLI flag | Which agent harness to run (default `claude`; discoverable via `cadero --help`) |
 | `REDIS_URL` | relay env | Redis connection string (compose sets it) |
 | `PORT` | relay env | Relay listen port (default 8787) |
