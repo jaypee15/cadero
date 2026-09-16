@@ -12,7 +12,7 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
 - [x] Register the two GitHub OAuth apps and configure the deployment
   (DONE 2026-09-15: production is live at https://cadero.dev on the Contabo
   VPS via Dokploy + Cloudflare; both apps registered and wired):
-  - CLI app (device flow, no secret) → `CADERO_GITHUB_CLIENT_ID` for `cadero-cli login`.
+  - CLI app (device flow, no secret) → `CADERO_GITHUB_CLIENT_ID` for `cadero login`.
   - Relay app (authorization code + client secret) → `GITHUB_OAUTH_CLIENT_ID`,
     `GITHUB_OAUTH_CLIENT_SECRET`, `CADERO_RELAY_PUBLIC_URL`, `CADERO_APP_URL`.
 - [ ] Publish `@cadero/cli` to npm. The README quickstart currently documents
@@ -118,7 +118,7 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
   1. iOS Safari: PWA install (Add to Home Screen), standalone launch, no
      browser chrome.
   2. Pair via the native camera QR → GitHub sign-in → auto-import → live.
-  3. Pair a second `cadero-cli start` session; switch tabs on the phone;
+  3. Pair a second `cadero start` session; switch tabs on the phone;
      verify background rooms buffer output and the approval badge shows.
   4. Reload the PWA mid-session: sessions reconnect from the stash.
   5. Keyboard: viewport refit on keyboard open/close (resize frames),
@@ -158,7 +158,7 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
   works and is the tested path). Layout pass: `overflow-hidden` on the
   terminal container or a z-order fix. (Plan 4, Task 8)
 - [ ] Document `--agent <claude|opencode>` in the README config table (currently
-  discoverable via `cadero-cli --help`; defaults to `claude`). (Plan 4, Task 9)
+  discoverable via `cadero --help`; defaults to `claude`). (Plan 4, Task 9)
 
 ## Test hygiene (cosmetic, batch opportunistically)
 

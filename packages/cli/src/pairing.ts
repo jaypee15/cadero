@@ -19,12 +19,12 @@ export async function pairSession(
     method: "POST",
     headers: {
       Authorization: `Bearer ${githubToken}`,
-      "User-Agent": "cadero-cli",
+      "User-Agent": "cadero",
     },
   });
   if (!res.ok) {
     if (res.status === 401) {
-      throw new Error("saved login was rejected (HTTP 401) — run: cadero-cli login");
+      throw new Error("saved login was rejected (HTTP 401) — run: cadero login");
     }
     throw new Error(`pairing failed: HTTP ${res.status}`);
   }

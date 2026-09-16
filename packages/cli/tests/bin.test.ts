@@ -16,14 +16,14 @@ describe("bin entrypoint (symlink invocation)", () => {
   it("prints usage when invoked through a symlink", () => {
     expect(existsSync(distMain)).toBe(true); // `npm run build` must run first
     const dir = mkdtempSync(join(tmpdir(), "cadero-bin-"));
-    const link = join(dir, "cadero-cli");
+    const link = join(dir, "cadero");
     symlinkSync(distMain, link);
     try {
       const stdout = execFileSync(process.execPath, [link, "--help"], {
         encoding: "utf8",
         timeout: 15000,
       });
-      expect(stdout).toContain("cadero-cli");
+      expect(stdout).toContain("cadero");
       expect(stdout).toContain("Usage:");
     } finally {
       rmSync(dir, { recursive: true, force: true });

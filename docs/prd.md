@@ -89,7 +89,7 @@ For security teams or enthusiasts who refuse to connect to a third-party relay:
 ## Cadero Public Multi-Tenant Cloud
 For developers who want an immediate, turn-key configuration setup:
 
-   1. Run npx cadero-cli login on their development machine (authenticates with Github and configures the environment).
+   1. Run npx cadero login on their development machine (authenticates with Github and configures the environment).
    2. Scan the generated terminal QR code with a smartphone to link securely to the running session room.
 
 

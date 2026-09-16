@@ -17,7 +17,7 @@
 - Zero-knowledge: heartbeats are encrypted like every other frame; the relay routes them blind; no plaintext transport mode is introduced.
 - Local final veto: PTY writes remain only approval keystrokes and prompt text.
 - Never log credentials, tokens, or frame bodies.
-- Fail fast: missing `CADERO_GITHUB_CLIENT_ID` blocks `cadero-cli login` with a clear error.
+- Fail fast: missing `CADERO_GITHUB_CLIENT_ID` blocks `cadero login` with a clear error.
 - Existing interfaces (exact names, Plans 1-3): `@cadero/protocol` — `WireEventSchema`, `WireEvent`, `encryptEnvelope`, `decryptEnvelope`, `EnvelopeError`, `generateSessionKey`, `exportSessionKey`, `importSessionKey`, `parsePairingPayload`; `@cadero/relay` — `createServer({ redisUrl, verifyUser?, oauth? })`, `createRoomStore(redisUrl)`, `createVerifyUser(redisUrl)` (callable with `.disconnect()`), `runMain({ env? })` (port default 8787), stream close codes 4401/4404; `@cadero/cli` — `CaderoSocket` opts `{ relayUrl, roomId, token, sessionKey, sessionId, onClose?, onFatal? }`, `AgentSession` opts `{ agent, command, args?, cwd, socket, sessionId, config, autoApproveText?, onError? }` (pending state is `{ prompt, command }`), `runCli(argv, { env?, caderoDir?, cwd?, fetchImpl?, stdout?, stderr? })`; `@cadero/mobile` — `MobileSocket` opts `{ relayUrl, roomId, token, sessionKey, WebSocketImpl?, onEvent, onGap, onClosed, onFatal? }`, reducer `reduceSession` with `GAP`/`EVENT` actions, `initialSessionState`.
 
 ---
@@ -681,7 +681,7 @@ git commit -m "feat(mobile): heartbeat, staleness detection, and gap-recovery se
 
 **Interfaces:**
 - Consumes: `runCli` RunOptions env.
-- Produces: `requestDeviceCode(fetchImpl, clientId: string)` and `pollForAccessToken(fetchImpl, deviceCode, opts, clientId: string)` — client id is now an explicit argument (the screaming constant is deleted). `cadero-cli login` requires `CADERO_GITHUB_CLIENT_ID` in the environment: missing or empty → stderr `CADERO_GITHUB_CLIENT_ID is not set; register a GitHub OAuth app and set it to enable login` → exit 1. (Self-host compose passes it through; the public-cloud deployment sets it in the environment of the npm-published CLI via the install channel — that is deployment configuration, not code.)
+- Produces: `requestDeviceCode(fetchImpl, clientId: string)` and `pollForAccessToken(fetchImpl, deviceCode, opts, clientId: string)` — client id is now an explicit argument (the screaming constant is deleted). `cadero login` requires `CADERO_GITHUB_CLIENT_ID` in the environment: missing or empty → stderr `CADERO_GITHUB_CLIENT_ID is not set; register a GitHub OAuth app and set it to enable login` → exit 1. (Self-host compose passes it through; the public-cloud deployment sets it in the environment of the npm-published CLI via the install channel — that is deployment configuration, not code.)
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1167,15 +1167,15 @@ controls for every action the agent wants to take.
 1. `docker compose up -d` — starts Redis, the relay, and the PWA (port 8080).
 2. Set the OAuth env vars for the relay (see Configuration) and restart it.
 3. On your dev machine: `npm install -g @cadero/cli`
-4. `cadero-cli login` (requires `CADERO_GITHUB_CLIENT_ID` in your env)
-5. `cadero-cli start --relay-url http://your-server:8080`
+4. `cadero login` (requires `CADERO_GITHUB_CLIENT_ID` in your env)
+5. `cadero start --relay-url http://your-server:8080`
 6. Scan the terminal QR with your phone.
 
 ## Configuration
 
 | Variable | Where | Purpose |
 |---|---|---|
-| `CADERO_GITHUB_CLIENT_ID` | CLI env | GitHub OAuth app client id for `cadero-cli login` |
+| `CADERO_GITHUB_CLIENT_ID` | CLI env | GitHub OAuth app client id for `cadero login` |
 | `CADERO_RELAY_URL` | CLI flag/env | Relay base URL (default: required at start) |
 | `CADERO_INTERCEPT_TIMEOUT_MS` | CLI env | Intercept timeout override (default 900000 = 15 min) |
 | `REDIS_URL` | relay env | Redis connection string (compose sets it) |

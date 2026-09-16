@@ -142,7 +142,7 @@ To ensure absolute privacy even if the cloud relay infrastructure is compromised
          │                               │                               │    In-Memory Key
 
 
-   1. Local Key Generation: When npx cadero-cli runs, it generates a cryptographically secure, single-session AES-GCM 256-bit symmetric key in memory.
+   1. Local Key Generation: When npx cadero runs, it generates a cryptographically secure, single-session AES-GCM 256-bit symmetric key in memory.
    2. QR Compilation: The generated symmetric key and target room_id are combined into a URL string encoded within a terminal-rendered QR code. This key never leaves the terminal.
    3. Session Handshake: Scanning the QR code passes the secret key directly into the mobile browser's local memory (window.crypto.subtle).
    4. Zero-Knowledge Transport: The local daemon encrypts payloads before transmission. The cloud relay reads only the routing header (room_id), while the encrypted block travels completely unreadable until it reaches the mobile client.

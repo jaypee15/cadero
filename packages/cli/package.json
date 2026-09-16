@@ -2,7 +2,7 @@
   "name": "@cadero/cli",
   "version": "0.1.0",
   "type": "module",
-  "bin": { "cadero-cli": "./dist/main.js" },
+  "bin": { "cadero": "./dist/main.js" },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run"

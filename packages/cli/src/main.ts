@@ -21,14 +21,14 @@ export interface RunOptions {
   isTTY?: boolean;
 }
 
-const USAGE = `cadero-cli — control local AI agents from your phone
+const USAGE = `cadero — control local AI agents from your phone
 
 Usage:
-  cadero-cli login                          Authenticate with GitHub
-  cadero-cli start [options]                Pair a session and start the agent
+  cadero login                          Authenticate with GitHub
+  cadero start [options]                Pair a session and start the agent
     --agent <claude|opencode|codex>          Agent binary to spawn (default: claude)
     --relay-url <url>                        Relay base URL (or set CADERO_RELAY_URL)
-  cadero-cli --help                         Show this help
+  cadero --help                         Show this help
 `;
 
 export async function runCli(argv: string[], opts: RunOptions = {}): Promise<number> {
@@ -89,7 +89,7 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
     }
     const creds = await loadCredentials(caderoDir);
     if (!creds) {
-      err("not logged in; run: cadero-cli login");
+      err("not logged in; run: cadero login");
       return 1;
     }
 

@@ -101,7 +101,7 @@ describe("runCli", () => {
       stderr: (line) => errs.push(line),
     });
     expect(code).toBe(1);
-    expect(errs.join("\n")).toContain("cadero-cli login");
+    expect(errs.join("\n")).toContain("cadero login");
   });
 
   it("start without a relay URL exits 1", async () => {
@@ -117,6 +117,6 @@ describe("runCli", () => {
     const out: string[] = [];
     const code = await runCli(["--help"], { stdout: (l) => out.push(l) });
     expect(code).toBe(0);
-    expect(out.join("\n")).toContain("cadero-cli login");
+    expect(out.join("\n")).toContain("cadero login");
   });
 });

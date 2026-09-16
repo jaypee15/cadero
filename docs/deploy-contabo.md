@@ -137,8 +137,8 @@ npm install && npm run build
 npm link ./packages/cli
 
 export CADERO_GITHUB_CLIENT_ID=<cli-app-client-id>
-cadero-cli login          # approve the code at github.com/login/device
-cadero-cli start --relay-url https://cadero.dev
+cadero login          # approve the code at github.com/login/device
+cadero start --relay-url https://cadero.dev
 ```
 
 Scan the terminal QR with your phone — `https://cadero.dev` goes live with

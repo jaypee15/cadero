@@ -26,7 +26,7 @@ export async function requestDeviceCode(
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
-      "User-Agent": "cadero-cli",
+      "User-Agent": "cadero",
     },
     body: JSON.stringify({ client_id: clientId, scope: "read:user" }),
   });
@@ -75,7 +75,7 @@ export async function pollForAccessToken(
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
-        "User-Agent": "cadero-cli",
+        "User-Agent": "cadero",
       },
       body: JSON.stringify({
         client_id: clientId,

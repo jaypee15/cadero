@@ -50,7 +50,7 @@ describe("pairSession", () => {
         status: 401,
       })) as typeof fetch;
     await expect(pairSession("https://relay.example.com", "bad", fetchImpl)).rejects.toThrow(
-      "saved login was rejected (HTTP 401) — run: cadero-cli login",
+      "saved login was rejected (HTTP 401) — run: cadero login",
     );
   });
 });

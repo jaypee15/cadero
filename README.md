@@ -35,16 +35,16 @@ approve/deny controls for every action the agent wants to take.
    npm run build
    npm link ./packages/cli
    ```
-4. `cadero-cli login` (requires `CADERO_GITHUB_CLIENT_ID` in your env)
-5. `cadero-cli start --relay-url https://cadero.dev`
+4. `cadero login` (requires `CADERO_GITHUB_CLIENT_ID` in your env)
+5. `cadero start --relay-url https://cadero.dev`
 6. Scan the terminal QR with your phone — or with the native camera app (the
    printed `Native phone camera` QR opens the PWA, which auto-imports the
-   pairing after GitHub sign-in). Each `cadero-cli start` creates its own
+   pairing after GitHub sign-in). Each `cadero start` creates its own
    room; the phone keeps every paired session connected with a tab switcher.
 
 ## Multi-session
 
-Every `cadero-cli start` runs one agent in its own room. The phone pairs to
+Every `cadero start` runs one agent in its own room. The phone pairs to
 as many rooms as you like and keeps them all connected: a tab bar switches
 between them, pending approvals show an amber badge on their tab, and
 sessions survive page reloads (per-tab `sessionStorage`, cleared when the
@@ -58,10 +58,10 @@ fact.
 
 | Variable | Where | Purpose |
 |---|---|---|
-| `CADERO_GITHUB_CLIENT_ID` | CLI env | GitHub OAuth app client id for `cadero-cli login` |
+| `CADERO_GITHUB_CLIENT_ID` | CLI env | GitHub OAuth app client id for `cadero login` |
 | `CADERO_RELAY_URL` | CLI flag/env | Relay base URL (default: required at start) |
 | `CADERO_INTERCEPT_TIMEOUT_MS` | CLI env | Intercept timeout override (default 900000 = 15 min) |
-| `--agent <claude\|opencode\|codex>` | CLI flag | Which agent harness to run (default `claude`; discoverable via `cadero-cli --help`) |
+| `--agent <claude\|opencode\|codex>` | CLI flag | Which agent harness to run (default `claude`; discoverable via `cadero --help`) |
 | `REDIS_URL` | relay env | Redis connection string (compose sets it) |
 | `PORT` | relay env | Relay listen port (default 8787) |
 | `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` | relay env | OAuth portal (503 when unset) |

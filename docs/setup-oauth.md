@@ -12,7 +12,7 @@ Apps are the right type — Cadero only verifies user identity and requests the
 |---|---|---|
 | Flow | Device code (RFC 8628) | Authorization code + redirect |
 | Secret | Not needed | Required, lives only on the relay |
-| Used by | `cadero-cli login` | The mobile PWA's browser login |
+| Used by | `cadero login` | The mobile PWA's browser login |
 | Why | The CLI runs in a terminal | Browsers can't call GitHub's device-flow endpoints (no CORS headers), so the relay hosts the redirect flow |
 
 Keeping them separate means the secretless CLI app can ship on dev machines
@@ -25,7 +25,7 @@ while the secret-holding relay app is rotated without touching anything local.
 3. **Authorization callback URL**: unused by device flow, but the field is
    required — `http://localhost` is fine.
 4. After creating, open the app page and tick **"Enable Device Flow"**.
-   Without it, `cadero-cli login` fails with `device flow error:
+   Without it, `cadero login` fails with `device flow error:
    unauthorized_client`.
 5. Copy the **Client ID** and export it on your dev machine:
 
