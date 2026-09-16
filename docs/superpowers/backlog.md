@@ -64,21 +64,20 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
 
 ## Ops / deployment
 
-- [ ] Compose healthchecks on redis and relay (`depends_on` is order-only;
-  a cold start where redis lags crash-loops the relay until
-  `restart: unless-stopped` recovers it). (Plan 4, Task 7 ledger)
-- [ ] Relay runtime image prune: the multi-stage build copies the full
-  `node_modules` including devDeps (`typescript`, `vitest`). Add
-  `npm prune --omit=dev` or a prod-only reinstall stage. (Plan 4, Task 7 ledger)
-- [ ] Add `.git` to root `.dockerignore` (build context currently ships the
-  repo history to the daemon). Cosmetic, context-size only. (Plan 4, Task 7 ledger)
-- [ ] First `/health` ping after relay boot reports `"redis": "down"`
-  (`lazyConnect` first-ping warm-up in `createServer`, pre-existing Plan 1
-  behavior). Add a `connect()` warm-up so health is truthful from the first
-  call. (Plan 4, Task 7 report)
-- [ ] Validate `CADERO_INTERCEPT_TIMEOUT_MS` before pairing/connecting instead
-  of after — an invalid value currently wastes a relay connection and a
-  pairing payload before exiting 1. (Plan 4, Task 3 ledger)
+- [x] Compose healthchecks on redis and relay (`depends_on` now gates on
+  `service_healthy`; relay's check polls `/health` and fails while
+  `"redis": "down"`). (DONE 2026-09-16)
+- [x] Relay runtime image prune: the multi-stage build copied the full
+  `node_modules` including devDeps; the build stage now runs
+  `npm prune --omit=dev` before the runtime COPY. (DONE 2026-09-16)
+- [x] Add `.git` to root `.dockerignore`. (DONE 2026-09-16)
+- [x] First `/health` ping after relay boot reported `"redis": "down"` —
+  verified already fixed pre-sweep: eager `redis.connect()` warm-up + a
+  bounded retry loop inside `/health` exist in `createServer`. (DONE 2026-09-16)
+- [x] Validate `CADERO_INTERCEPT_TIMEOUT_MS` before pairing/connecting instead
+  of after — validation now runs before `pairSession`, so an invalid value
+  exits 1 without wasting a relay connection or pairing payload.
+  (DONE 2026-09-16)
 
 ## Product / UX
 

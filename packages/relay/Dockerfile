@@ -11,6 +11,10 @@ COPY tsconfig.base.json ./
 COPY packages/protocol packages/protocol
 COPY packages/relay packages/relay
 RUN npm run build --workspace=@cadero/protocol && npm run build --workspace=@cadero/relay
+# The runtime stage copies the workspace node_modules tree verbatim; prune
+# devDeps (typescript, vitest, ...) here so the shipped image doesn't carry
+# the build toolchain.
+RUN npm prune --omit=dev
 
 FROM node:22-alpine
 WORKDIR /app

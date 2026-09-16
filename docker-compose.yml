@@ -4,6 +4,11 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   relay:
     build:
@@ -17,8 +22,20 @@ services:
       GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
       CADERO_RELAY_PUBLIC_URL: ${CADERO_RELAY_PUBLIC_URL:-}
       CADERO_APP_URL: ${CADERO_APP_URL:-}
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch("http://127.0.0.1:8787/health").then(r => r.json()).then(j =>
+          process.exit(j.redis === "up" ? 0 : 1)).catch(() => process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
 
   web:
     build:
@@ -28,4 +45,5 @@ services:
     ports:
       - "8080:80"
     depends_on:
-      - relay
+      relay:
+        condition: service_healthy

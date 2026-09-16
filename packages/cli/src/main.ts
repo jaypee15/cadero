@@ -93,6 +93,19 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
       return 1;
     }
 
+    // Validate the intercept timeout before pairing: an invalid value would
+    // otherwise waste a relay connection and a pairing payload before exiting.
+    const interceptTimeoutRaw = env.CADERO_INTERCEPT_TIMEOUT_MS;
+    if (interceptTimeoutRaw !== undefined) {
+      const parsed = Number(interceptTimeoutRaw);
+      if (!Number.isInteger(parsed) || parsed <= 0) {
+        err("CADERO_INTERCEPT_TIMEOUT_MS must be a positive integer (milliseconds)");
+        return 1;
+      }
+    }
+    const interceptTimeoutMs =
+      interceptTimeoutRaw !== undefined ? Number(interceptTimeoutRaw) : INTERCEPT_TIMEOUT_MS;
+
     const { roomId, sessionKey, qrPayload } = await pairSession(
       relayUrl,
       creds.githubToken,
@@ -135,16 +148,6 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
     await socket.connect();
 
     const config = await loadConfig(cwd);
-    const interceptTimeoutRaw = env.CADERO_INTERCEPT_TIMEOUT_MS;
-    if (interceptTimeoutRaw !== undefined) {
-      const parsed = Number(interceptTimeoutRaw);
-      if (!Number.isInteger(parsed) || parsed <= 0) {
-        err("CADERO_INTERCEPT_TIMEOUT_MS must be a positive integer (milliseconds)");
-        return 1;
-      }
-    }
-    const interceptTimeoutMs =
-      interceptTimeoutRaw !== undefined ? Number(interceptTimeoutRaw) : INTERCEPT_TIMEOUT_MS;
 
     // Hold the local mirror until the phone joins (its first resize frame) or
     // a grace period elapses — otherwise the agent's full-screen TUI floods
