@@ -1,6 +1,8 @@
 # Cadero Deferred Follow-ups (Backlog)
 
-Maintained: 2026-09-16 | Source: Plans 1-4 final-review triage lists and per-task ledgers (see `docs/superpowers/plans/`).
+Maintained: 2026-09-16 | Source: Plans 1-4 final-review triage lists, per-task
+ledgers, and the 2026-09-16 UX redesign (see
+`docs/superpowers/specs/2026-09-16-ux-redesign-design.md`).
 
 This file is the durable record of work that was triaged as "ride" during the
 four implementation plans and not merged with the MVP. Each item lists the plan

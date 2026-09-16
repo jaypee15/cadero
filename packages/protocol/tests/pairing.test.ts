@@ -65,4 +65,25 @@ describe("parsePairingPayload (protocol)", () => {
       "not a cadero pairing payload",
     );
   });
+
+  it("parses an optional session label from the compact form", async () => {
+    const key = await exportSessionKey(await generateSessionKey());
+    const payload = `cadero://p?r=cadero.dev&m=room_abc123def4567890&k=${key}&l=${encodeURIComponent("claude · cadence")}`;
+    const parsed = parsePairingPayload(payload);
+    expect(parsed.label).toBe("claude · cadence");
+    expect(parsed.relay).toBe("https://cadero.dev");
+  });
+
+  it("omits the label field entirely when absent (back-compat)", async () => {
+    const key = await exportSessionKey(await generateSessionKey());
+    const payload = `cadero://p?r=cadero.dev&m=room_abc123def4567890&k=${key}`;
+    const parsed = parsePairingPayload(payload);
+    expect("label" in parsed).toBe(false);
+  });
+
+  it("rejects an over-long label", async () => {
+    const key = await exportSessionKey(await generateSessionKey());
+    const payload = `cadero://p?r=cadero.dev&m=room_abc123def4567890&k=${key}&l=${encodeURIComponent("x".repeat(65))}`;
+    expect(() => parsePairingPayload(payload)).toThrow("not a cadero pairing payload");
+  });
 });

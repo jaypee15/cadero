@@ -45,7 +45,9 @@ async function pair(page: Page, payload: string = PAYLOAD): Promise<void> {
       }
     });
   });
-  await page.goto(`/?token-not-used#token=${E2E_TOKEN}`);
+  await page.goto(`/app?token-not-used#token=${E2E_TOKEN}`);
+  // Manual paste lives behind the Advanced disclosure.
+  await page.getByRole("button", { name: /advanced.*paste the pairing payload/i }).click();
   await page.getByPlaceholder(/paste the pairing payload/i).fill(payload);
   await page.getByRole("button", { name: /pair manually/i }).click();
   const prompt = page.getByPlaceholder(/prompt the agent/i);

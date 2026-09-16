@@ -104,6 +104,14 @@ function fakeFactory() {
   return { factory, created };
 }
 
+function fakeSocket(): SocketLike {
+  return {
+    connect: () => Promise.resolve(),
+    send: () => Promise.resolve(),
+    close: () => Promise.resolve(),
+  };
+}
+
 function snapshot(store: SessionStore) {
   return store.getSnapshot();
 }
@@ -158,6 +166,27 @@ describe("createSessionStore (fake sockets)", () => {
     expect(view.sessions[0].phase).toBe("live");
     expect(view.sessions[0].terminal).toContain("hello phone");
     expect(view.sessions[0].chunkCount).toBe(1);
+  });
+
+  it("uses the pairing label when given, falling back to Room <last4>", async () => {
+    const { store } = makeStore();
+    await store.addSession(
+      { relay: "http://r", room: "room_aaaa111122223333", key: KEY_43, label: "claude · cadence" },
+      "tok",
+    );
+    expect(snapshot(store).sessions[0].label).toBe("claude · cadence");
+
+    await store.addSession({ relay: "http://r", room: "room_bbbb111122223333", key: KEY_43 }, "tok");
+    expect(snapshot(store).sessions[1].label).toBe("Room 3333");
+
+    // Labels survive persistence.
+    store.setActive("room_aaaa111122223333");
+    const store2 = createSessionStore({ socketFactory: () => fakeSocket() });
+    sessionStorage.setItem("cadero_oauth_token", "tok");
+    await store2.restore();
+    expect(snapshot(store2).sessions.find((s) => s.roomId === "room_aaaa111122223333")!.label).toBe(
+      "claude · cadence",
+    );
   });
 
   it("appends GAP markers on gap and clears gapped when data flows again", async () => {

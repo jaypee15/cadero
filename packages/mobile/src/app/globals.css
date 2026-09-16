@@ -1,1 +1,26 @@
 @import "tailwindcss";
+
+@theme {
+  /* Cadero dark identity: near-black app surface, slate structure,
+     single emerald accent. */
+  --color-surface-0: #09090f;
+  --color-surface-1: #0f1117;
+  --color-surface-2: #161a23;
+  --color-surface-3: #1f2531;
+  --color-line: #262c3a;
+  --color-ink: #e7eaf0;
+  --color-ink-muted: #9aa3b2;
+  --color-ink-faint: #5d6675;
+  --color-accent: #34d399;
+  --color-accent-dim: #10b981;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-surface-0);
+  color: var(--color-ink);
+}

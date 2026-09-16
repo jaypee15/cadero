@@ -13,6 +13,7 @@ import { TerminalView, type TerminalApi } from "../components/TerminalView";
 import { InterceptOverlay } from "../components/InterceptOverlay";
 import { PromptInput } from "../components/PromptInput";
 import { GapBanner } from "../components/GapBanner";
+import { Wordmark } from "../components/Wordmark";
 import {
   clearPairingStash,
   readOAuthTokenFromHash,
@@ -202,56 +203,97 @@ export function CaderoApp({ store = defaultSessionStore }: { store?: SessionStor
   const showPairing = snapshot.sessions.length === 0 || pairingOpen;
   const debug = new URLSearchParams(window.location.search).has("debug");
 
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
   const pairingPanel = (
-    <main className="fixed inset-0 z-30 flex min-h-dvh flex-col items-center justify-center gap-6 bg-slate-900 p-6">
-      <h1 className="text-xl font-semibold">Pair with your desktop</h1>
-      <p className="text-sm text-slate-400">
-        1. Sign in with GitHub (once per device) · 2. Scan the QR
-      </p>
-      {error && <p className="text-sm text-rose-400">{error}</p>}
-      {signedIn ? (
-        <p className="text-sm font-medium text-emerald-400">Signed in with GitHub ✓</p>
-      ) : (
-        <a
-          href={`${window.location.origin}/v1/oauth/login`}
-          className="rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white"
-        >
-          Sign in with GitHub
-        </a>
-      )}
-      <video ref={videoRef} className="h-64 w-64 rounded-2xl bg-slate-800" muted playsInline />
-      <button
-        type="button"
-        onClick={() => void scanViaCamera()}
-        disabled={scanning}
-        className="rounded-xl bg-sky-600 px-6 py-3 font-semibold text-white disabled:opacity-40"
-      >
-        {scanning ? "Scanning…" : "Scan QR code"}
-      </button>
-      <div className="w-full max-w-sm">
-        <textarea
-          value={manualPayload}
-          onChange={(event) => setManualPayload(event.target.value)}
-          placeholder="…or paste the pairing payload"
-          className="h-20 w-full rounded-xl bg-slate-950 p-3 font-mono text-xs text-slate-300"
-        />
-        <button
-          type="button"
-          onClick={importManual}
-          className="mt-2 w-full rounded-xl bg-slate-700 px-4 py-2 text-sm font-medium text-slate-100"
-        >
-          Pair manually
-        </button>
+    <main className="fixed inset-0 z-30 flex min-h-dvh flex-col items-center justify-center gap-5 bg-surface-0 px-6 py-10">
+      <div className="flex w-full max-w-sm items-center justify-between">
+        <Wordmark />
+        {snapshot.sessions.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setPairingOpen(false)}
+            className="rounded-xl bg-surface-3 px-3 py-2 text-xs font-medium text-ink-muted ring-1 ring-line"
+          >
+            Back to sessions
+          </button>
+        )}
       </div>
-      {snapshot.sessions.length > 0 && (
+
+      <div className="w-full max-w-sm rounded-2xl border border-line bg-surface-1 p-6">
+        <h1 className="text-lg font-semibold text-ink">Pair with your desktop</h1>
+        <ol className="mt-4 space-y-3 text-sm">
+          <li className="flex items-center gap-3">
+            <span
+              className={
+                "grid h-6 w-6 shrink-0 place-items-center rounded-full font-mono text-xs " +
+                (signedIn ? "bg-accent-dim text-surface-0" : "bg-surface-3 text-ink-muted")
+              }
+            >
+              {signedIn ? "✓" : "1"}
+            </span>
+            {signedIn ? (
+              <span className="text-sm font-medium text-accent">Signed in with GitHub</span>
+            ) : (
+              <a
+                href={`${window.location.origin}/v1/oauth/login`}
+                className="text-sm font-medium text-ink underline decoration-line underline-offset-4"
+              >
+                Sign in with GitHub
+              </a>
+            )}
+          </li>
+          <li className="flex items-start gap-3">
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-surface-3 font-mono text-xs text-ink-muted">
+              2
+            </span>
+            <span className="pt-1 text-sm text-ink-muted">Scan the QR from the terminal</span>
+          </li>
+        </ol>
+        {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
+
+        <div className="mt-5 overflow-hidden rounded-2xl bg-surface-3 ring-1 ring-line">
+          <video ref={videoRef} className="h-64 w-full bg-surface-0" muted playsInline />
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="text-xs text-ink-faint">
+              {scanning ? "Looking for a QR…" : "Camera ready"}
+            </span>
+            <button
+              type="button"
+              onClick={() => void scanViaCamera()}
+              disabled={scanning}
+              className="rounded-xl bg-accent-dim px-4 py-2 text-sm font-semibold text-surface-0 disabled:opacity-40"
+            >
+              {scanning ? "Scanning…" : "Scan QR code"}
+            </button>
+          </div>
+        </div>
+
         <button
           type="button"
-          onClick={() => setPairingOpen(false)}
-          className="rounded-xl bg-slate-800 px-4 py-2 text-sm font-medium text-slate-300"
+          onClick={() => setAdvancedOpen(!advancedOpen)}
+          className="mt-4 text-xs font-medium text-ink-faint underline underline-offset-4"
         >
-          Back to sessions
+          {advancedOpen ? "Hide" : "Advanced"} — paste the pairing payload
         </button>
-      )}
+        {advancedOpen && (
+          <div className="mt-2">
+            <textarea
+              value={manualPayload}
+              onChange={(event) => setManualPayload(event.target.value)}
+              placeholder="paste the pairing payload (cadero://p?r=…&m=…&k=…)"
+              className="h-20 w-full rounded-xl bg-surface-0 p-3 font-mono text-xs text-ink-muted ring-1 ring-line"
+            />
+            <button
+              type="button"
+              onClick={importManual}
+              className="mt-2 w-full rounded-xl bg-surface-3 px-4 py-2 text-sm font-medium text-ink ring-1 ring-line"
+            >
+              Pair manually
+            </button>
+          </div>
+        )}
+      </div>
     </main>
   );
 
@@ -260,14 +302,14 @@ export function CaderoApp({ store = defaultSessionStore }: { store?: SessionStor
       <div
         className={
           live
-            ? "flex h-dvh flex-col bg-slate-900"
+            ? "flex h-dvh flex-col bg-surface-0"
             : "fixed inset-0 opacity-0 pointer-events-none"
         }
       >
         {snapshot.sessions.length > 0 && (
           <div
             role="tablist"
-            className="flex items-center gap-1 overflow-x-auto border-b border-slate-700 bg-slate-950 px-2 py-1"
+            className="flex items-center gap-1 overflow-x-auto border-b border-line bg-surface-1 px-2 py-1.5"
           >
             {snapshot.sessions.map((s) => (
               <div key={s.roomId} className="flex items-center">
@@ -278,13 +320,13 @@ export function CaderoApp({ store = defaultSessionStore }: { store?: SessionStor
                   data-testid={`tab-${s.roomId}`}
                   onClick={() => store.setActive(s.roomId)}
                   className={
-                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium " +
+                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition " +
                     (s.roomId === snapshot.activeId
-                      ? "bg-slate-700 text-white"
-                      : "text-slate-400")
+                      ? "bg-surface-3 text-ink ring-1 ring-line"
+                      : "text-ink-faint")
                   }
                 >
-                  <span>{s.label}</span>
+                  <span className="whitespace-nowrap">{s.label}</span>
                   {s.intercept && (
                     <span
                       data-pending="true"
@@ -293,14 +335,14 @@ export function CaderoApp({ store = defaultSessionStore }: { store?: SessionStor
                     />
                   )}
                   {s.phase === "closed" && (
-                    <span className="text-[10px] text-slate-500">ended</span>
+                    <span className="text-[10px] text-ink-faint">ended</span>
                   )}
                 </button>
                 <button
                   type="button"
                   aria-label={`Close ${s.label}`}
                   onClick={() => store.removeSession(s.roomId)}
-                  className="ml-0.5 rounded-lg px-1.5 py-1.5 text-xs text-slate-500"
+                  className="ml-0.5 rounded-lg px-1.5 py-1.5 text-xs text-ink-faint"
                 >
                   ×
                 </button>
@@ -310,7 +352,7 @@ export function CaderoApp({ store = defaultSessionStore }: { store?: SessionStor
               type="button"
               aria-label="Pair a new session"
               onClick={() => setPairingOpen(true)}
-              className="ml-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold text-sky-400"
+              className="ml-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold text-accent"
             >
               + Pair
             </button>
@@ -320,11 +362,18 @@ export function CaderoApp({ store = defaultSessionStore }: { store?: SessionStor
         <div className="relative min-h-0 flex-1">
           <TerminalView onReady={handleTerminalReady} onResize={handleTerminalResize} />
           {activePhase === "closed" && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-slate-900 p-6 text-center">
-              <p className="text-lg font-semibold">Session closed</p>
-              <p className="text-sm text-slate-400">
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-surface-0 p-6 text-center">
+              <p className="text-lg font-semibold text-ink">Session closed</p>
+              <p className="max-w-sm text-sm text-ink-muted">
                 {active?.closedReason ?? "The session ended."}
               </p>
+              <button
+                type="button"
+                onClick={() => setPairingOpen(true)}
+                className="rounded-xl bg-surface-3 px-5 py-2.5 text-sm font-semibold text-ink ring-1 ring-line"
+              >
+                Pair another session
+              </button>
             </div>
           )}
           {active?.intercept && (
@@ -342,7 +391,7 @@ export function CaderoApp({ store = defaultSessionStore }: { store?: SessionStor
         {debug && (
           <div
             data-debug-status="true"
-            className="border-t border-slate-700 bg-slate-950 px-3 py-1 text-center text-[10px] text-slate-500"
+            className="border-t border-line bg-surface-1 px-3 py-1 text-center font-mono text-[10px] text-ink-faint"
           >
             frames: {active?.chunkCount ?? 0} · phase: {activePhase} · gapped:{" "}
             {String(active?.gapped ?? false)}

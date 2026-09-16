@@ -23,6 +23,7 @@ export interface PairingInput {
   relay: string;
   room: string;
   key: string;
+  label?: string;
 }
 
 export interface SessionView {
@@ -53,6 +54,7 @@ interface PersistedSession {
   roomId: string;
   relayUrl: string;
   key: string;
+  label?: string;
   terminal: string;
   phase: SessionPhase;
   closedReason?: string;
@@ -128,6 +130,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         roomId: rt.roomId,
         relayUrl: rt.relayUrl,
         key: rt.key,
+        label: rt.label,
         terminal: rt.terminal.slice(-persistTerminalLimit),
         phase: rt.state.phase,
         ...(rt.state.closedReason !== undefined ? { closedReason: rt.state.closedReason } : {}),
@@ -284,7 +287,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       const rt: SessionRuntime = {
         roomId: parsed.room,
         relayUrl: parsed.relay,
-        label: `Room ${parsed.room.slice(-4)}`,
+        label: parsed.label ?? `Room ${parsed.room.slice(-4)}`,
         key: parsed.key,
         state: { ...initialSessionState, phase: "connecting" },
         terminal: "",
@@ -408,7 +411,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         const rt: SessionRuntime = {
           roomId: p.roomId,
           relayUrl: p.relayUrl,
-          label: `Room ${p.roomId.slice(-4)}`,
+          label: p.label ?? `Room ${p.roomId.slice(-4)}`,
           key: p.key,
           state: {
             ...initialSessionState,

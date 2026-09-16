@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { randomBytes } from "node:crypto";
 import { realpathSync } from "node:fs";
+import { basename } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadCredentials, saveCredentials, CADERO_DIR_DEFAULT } from "./credentials.js";
 import { pollForAccessToken, requestDeviceCode } from "./ghDevice.js";
@@ -126,6 +127,7 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
       relayUrl,
       creds.githubToken,
       fetchImpl,
+      `${agent} · ${basename(cwd)}`,
     );
     const qr = await import("qrcode");
     out(

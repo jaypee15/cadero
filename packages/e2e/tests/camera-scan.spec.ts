@@ -39,7 +39,7 @@ test("camera scan pairs and goes live", async ({ page }) => {
     });
   }, qrDataUrl);
 
-  await page.goto(`/?token-not-used#token=${E2E_TOKEN}`);
+  await page.goto(`/app?token-not-used#token=${E2E_TOKEN}`);
   await page.getByRole("button", { name: /scan qr code/i }).click();
   // The scanner decodes the faked camera frames and pairs automatically; the
   // prompt input only enables once the session is live.

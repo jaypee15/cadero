@@ -14,6 +14,7 @@ export async function pairSession(
   relayUrl: string,
   githubToken: string,
   fetchImpl: typeof fetch = fetch,
+  label?: string,
 ): Promise<PairingInfo> {
   const res = await fetchImpl(`${relayUrl}/v1/pair`, {
     method: "POST",
@@ -39,7 +40,8 @@ export async function pairSession(
   // https relays emit a bare host (the parser assumes the scheme); explicit
   // schemes (e.g. http://localhost:8787 in dev) are carried in full.
   const relayField = relayUrl.startsWith("https://") ? relayUrl.slice("https://".length) : relayUrl;
-  const qrPayload = `cadero://p?r=${encodeURIComponent(relayField)}&m=${roomId}&k=${raw}`;
+  const labelField = label !== undefined ? `&l=${encodeURIComponent(label)}` : "";
+  const qrPayload = `cadero://p?r=${encodeURIComponent(relayField)}&m=${roomId}&k=${raw}${labelField}`;
   return { roomId, sessionKey, qrPayload };
 }
 

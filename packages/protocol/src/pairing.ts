@@ -2,9 +2,20 @@ export interface ParsedPairing {
   relay: string;
   room: string;
   key: string;
+  /** Human label (e.g. "claude · cadence"); absent for legacy payloads. */
+  label?: string;
 }
 
 const KEY_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+const LABEL_MAX_CHARS = 64;
+
+function parseLabel(raw: string | null): string | undefined {
+  if (!raw) return undefined;
+  if (raw.length > LABEL_MAX_CHARS) {
+    throw new Error("not a cadero pairing payload");
+  }
+  return raw;
+}
 
 export function parsePairingPayload(payload: string): ParsedPairing {
   let url: URL;
@@ -22,7 +33,8 @@ export function parsePairingPayload(payload: string): ParsedPairing {
     if (!relay || !room || !key || !KEY_PATTERN.test(key)) {
       throw new Error("not a cadero pairing payload");
     }
-    return { relay, room, key };
+    const label = parseLabel(url.searchParams.get("label"));
+    return label !== undefined ? { relay, room, key, label } : { relay, room, key };
   }
   if (url.protocol === "cadero:" && url.hostname === "p") {
     const rawRelay = url.searchParams.get("r");
@@ -34,7 +46,8 @@ export function parsePairingPayload(payload: string): ParsedPairing {
     // A bare host means the production https edge (dev relays carry the
     // explicit http scheme).
     const relay = rawRelay.includes("://") ? rawRelay : `https://${rawRelay}`;
-    return { relay, room, key };
+    const label = parseLabel(url.searchParams.get("l"));
+    return label !== undefined ? { relay, room, key, label } : { relay, room, key };
   }
   throw new Error("not a cadero pairing payload");
 }

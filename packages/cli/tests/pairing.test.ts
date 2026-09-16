@@ -53,6 +53,20 @@ describe("pairSession", () => {
       "saved login was rejected (HTTP 401) — run: cadero login",
     );
   });
+
+  it("embeds the session label in the payload when given", async () => {
+    const fetchImpl = (async () =>
+      new Response(JSON.stringify({ room_id: "room_abc123def4567890" }), {
+        status: 200,
+      })) as typeof fetch;
+    const { qrPayload } = await pairSession(
+      "https://relay.example.com",
+      "tok123",
+      fetchImpl,
+      "claude · cadence",
+    );
+    expect(parsePairingPayload(qrPayload).label).toBe("claude · cadence");
+  });
 });
 
 describe("parsePairingPayload", () => {

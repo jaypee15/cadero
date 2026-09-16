@@ -23,8 +23,16 @@ createServer(async (req, res) => {
     res.writeHead(200, { "content-type": types[extname(path)] ?? "application/octet-stream" });
     res.end(body);
   } catch {
-    const body = await readFile(join(root, "index.html"));
-    res.writeHead(200, { "content-type": "text/html" });
-    res.end(body);
+    try {
+      // Directory-style routes resolve to their .html export (e.g. /app →
+      // app.html), mirroring the nginx try_files chain in production.
+      const body = await readFile(`${path}.html`);
+      res.writeHead(200, { "content-type": "text/html" });
+      res.end(body);
+    } catch {
+      const body = await readFile(join(root, "index.html"));
+      res.writeHead(200, { "content-type": "text/html" });
+      res.end(body);
+    }
   }
 }).listen(port, "127.0.0.1", () => console.log(`static on ${port}`));
