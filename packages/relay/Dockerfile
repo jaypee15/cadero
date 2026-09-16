@@ -13,8 +13,11 @@ COPY packages/relay packages/relay
 RUN npm run build --workspace=@cadero/protocol && npm run build --workspace=@cadero/relay
 # The runtime stage copies the workspace node_modules tree verbatim; prune
 # devDeps (typescript, vitest, ...) here so the shipped image doesn't carry
-# the build toolchain.
-RUN npm prune --omit=dev
+# the build toolchain. --ignore-scripts is required: npm prune re-runs the
+# install scripts of remaining packages, and node-pty's gyp rebuild needs
+# python/make which the alpine builder doesn't carry (the relay runtime
+# never loads node-pty, so skipping its rebuild is safe).
+RUN npm prune --omit=dev --ignore-scripts
 
 FROM node:22-alpine
 WORKDIR /app
