@@ -140,19 +140,8 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
     // so only print it when stdout is an interactive TTY.
     if (opts.isTTY ?? process.stdout.isTTY) {
       out(qrPayload);
-      // Native phone camera pairing: the PWA reads the payload from the URL
-      // fragment and auto-imports it after GitHub sign-in, so the built-in
-      // camera app completes pairing in one scan. Same zero-knowledge gate.
-      try {
-        const relayPublic = new URL(relayUrl);
-        const deepLink = `https://${relayPublic.host}/#pair=${encodeURIComponent(qrPayload)}`;
-        out(`Native phone camera (opens the PWA): ${deepLink}`);
-        out(await qr.toString(deepLink, { type: "terminal", small: true, errorCorrectionLevel: "low" }));
-      } catch {
-        /* non-URL relay: the deep link is skipped, QR scan still works */
-      }
     }
-    out(`Scan with your phone. Relay: ${relayUrl}  Room: ${roomId}`);
+    out(`Scan with your phone (PWA). Relay: ${relayUrl}  Room: ${roomId}`);
 
     const sessionId = `sess_${randomBytes(8).toString("hex")}`;
     const socket = new CaderoSocket({

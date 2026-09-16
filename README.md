@@ -37,9 +37,7 @@ approve/deny controls for every action the agent wants to take.
    ```
 4. `cadero login` (requires `CADERO_GITHUB_CLIENT_ID` in your env)
 5. `cadero start --relay-url https://cadero.dev`
-6. Scan the terminal QR with your phone — or with the native camera app (the
-   printed `Native phone camera` QR opens the PWA, which auto-imports the
-   pairing after GitHub sign-in). Each `cadero start` creates its own
+6. Scan the terminal QR with your phone. Each `cadero start` creates its own
    room; the phone keeps every paired session connected with a tab switcher.
 
 ## Multi-session

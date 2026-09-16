@@ -88,13 +88,12 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
 
 ## Product / UX
 
-- [x] Phone-native camera pairing (DONE 2026-09-16): the CLI prints an
-  `https://<relay>/#pair=<urlencoded payload>` deep-link line + a second
-  native-camera QR under the pairing QR (TTY-gated, same zero-knowledge
-  posture). The PWA reads `#pair=` on load, stashes it in sessionStorage
-  (fragments never survive the OAuth redirect), and auto-imports it after
-  GitHub sign-in — a native camera completes pairing in one scan. Covered
-  by `appFlow.test.tsx` deep-link tests.
+- [x] Phone-native camera pairing (DONE 2026-09-16, native QR print REVERTED
+  same day per session feedback — "let users use the PWA for now"): the PWA
+  still accepts `https://<relay>/#pair=<urlencoded payload>` deep links
+  (stash in sessionStorage, auto-import after GitHub sign-in; covered by
+  `appFlow.test.tsx`), but the CLI no longer prints a second native-camera
+  QR. Re-enable the printed deep link when the phone flow warrants it.
 - [x] Multi-session switcher — DONE, see the dedicated entry further below in
   this section.
 - [x] Parked: opencode E2E final assertion is intermittent — the planned
