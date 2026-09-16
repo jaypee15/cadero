@@ -3,6 +3,7 @@ import {
   decryptEnvelope,
   encryptEnvelope,
   EncryptedEnvelopeSchema,
+  EnvelopeError,
   generateSessionKey,
   type EncryptedEnvelope,
 } from "../src/envelope.js";
@@ -69,5 +70,32 @@ describe("envelope", () => {
     expect(
       EncryptedEnvelopeSchema.safeParse({ ...base, sender: "s", seq: 0 }).success,
     ).toBe(true);
+  });
+
+  it("attaches the underlying error as cause for diagnostics", async () => {
+    const key = await generateSessionKey();
+    const other = await generateSessionKey();
+    const envelope = await encryptEnvelope("room_abc", key, event);
+    let caught: unknown;
+    try {
+      await decryptEnvelope(other, envelope);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(EnvelopeError);
+    const envelopeError = caught as EnvelopeError;
+    expect(envelopeError.reason).toBe("decryption_failed");
+    expect(envelopeError.cause).toBeInstanceOf(Error);
+  });
+
+  it("attaches a zod cause when the envelope is malformed", async () => {
+    let caught: unknown;
+    try {
+      await decryptEnvelope(await generateSessionKey(), { room_id: "" } as never);
+    } catch (err) {
+      caught = err;
+    }
+    expect((caught as EnvelopeError).reason).toBe("malformed_envelope");
+    expect((caught as EnvelopeError).cause).toBeDefined();
   });
 });

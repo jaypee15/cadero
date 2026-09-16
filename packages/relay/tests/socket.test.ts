@@ -210,6 +210,27 @@ describe("replay protection", () => {
 });
 
 describe("close-code contract", () => {
+  // Connect-refused races could otherwise hang until the suite timeout:
+  // every close promise carries an error handler and an explicit deadline.
+  const CLOSE_DEADLINE_MS = 10000;
+
+  function expectClose(ws: WebSocket): Promise<{ code: number; reason: string }> {
+    return new Promise((resolve, reject) => {
+      const deadline = setTimeout(
+        () => reject(new Error("socket never closed (deadline)")),
+        CLOSE_DEADLINE_MS,
+      );
+      ws.on("error", (err) => {
+        clearTimeout(deadline);
+        reject(err);
+      });
+      ws.on("close", (code, reason) => {
+        clearTimeout(deadline);
+        resolve({ code, reason: reason.toString() });
+      });
+    });
+  }
+
   it("closes with 4401 when verifyUser rejects", async () => {
     const app = createServer({
       redisUrl,
@@ -219,11 +240,8 @@ describe("close-code contract", () => {
     });
     await app.listen({ port: 0 });
     const port = (app.server.address() as AddressInfo).port;
-    const closed = new Promise<{ code: number; reason: string }>((resolve) => {
-      const ws = new WebSocket(`ws://127.0.0.1:${port}/v1/stream?room_id=room_x&token=t`);
-      ws.on("close", (code, reason) => resolve({ code, reason: reason.toString() }));
-    });
-    const result = await closed;
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/v1/stream?room_id=room_x&token=t`);
+    const result = await expectClose(ws);
     expect(result.code).toBe(4401);
     await app.close();
   });
@@ -232,13 +250,10 @@ describe("close-code contract", () => {
     const app = createServer({ redisUrl, verifyUser: async () => "octocat" });
     await app.listen({ port: 0 });
     const port = (app.server.address() as AddressInfo).port;
-    const closed = new Promise<{ code: number }>((resolve) => {
-      const ws = new WebSocket(
-        `ws://127.0.0.1:${port}/v1/stream?room_id=room_0000000000000000&token=t`,
-      );
-      ws.on("close", (code) => resolve({ code }));
-    });
-    const result = await closed;
+    const ws = new WebSocket(
+      `ws://127.0.0.1:${port}/v1/stream?room_id=room_0000000000000000&token=t`,
+    );
+    const result = await expectClose(ws);
     expect(result.code).toBe(4404);
     await app.close();
   });

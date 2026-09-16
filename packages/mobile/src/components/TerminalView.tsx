@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import type { Terminal } from "@xterm/xterm";
-import type { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 
 export interface TerminalApi {
@@ -21,7 +20,6 @@ export function TerminalView({
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | undefined>(undefined);
-  const fitRef = useRef<FitAddon | undefined>(undefined);
   const onResizeRef = useRef(onResize);
   onResizeRef.current = onResize;
 
@@ -43,7 +41,6 @@ export function TerminalView({
       term.loadAddon(fitAddon);
       term.open(hostRef.current);
       termRef.current = term;
-      fitRef.current = fitAddon;
       const refit = () => {
         try {
           fitAddon.fit();

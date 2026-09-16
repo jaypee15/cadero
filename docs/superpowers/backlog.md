@@ -162,23 +162,33 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
 
 ## Test hygiene (cosmetic, batch opportunistically)
 
-- [ ] Protocol schema rejection tests: bad `agent` enum, empty
-  `prompt`/`reason` strings, bad `timestamp`. (Plan 1, Task 2 ledger)
-- [ ] `redactForLog` branch tests (non-object, missing `room_id`). (Plan 1, Task 8)
-- [ ] Envelope: attach `{ cause }` to `EnvelopeError` for diagnostics. (Plan 2, Task 1)
-- [ ] Close-code contract tests: add `ws.on("error")` handlers and explicit
-  timeouts (a connect-refused race would hang to the suite timeout). (Plan 4, Task 2)
-- [ ] Bound the reconnect `readyState` polls in both socket test twins with
-  internal deadlines (currently bounded only by the vitest timeout). (Plan 4, Tasks 4-5)
-- [ ] Comment the `""` session_id sentinel in `MobileSocket` heartbeat
-  (triggers the UUID stamp in `send`). (Plan 4, Task 5 ledger)
-- [ ] Remove unused key-helper imports in the socket tests; unstub
+- [x] Protocol schema rejection tests: bad `agent` enum, empty
+  `prompt`/`reason` strings, bad `timestamp`, empty `session_id`, unknown
+  event types (`packages/protocol/tests/events.test.ts`). (DONE 2026-09-16)
+- [x] `redactForLog` branch tests (non-object, missing `room_id`, non-string
+  `room_id`) (`packages/relay/tests/logging.test.ts`). (DONE 2026-09-16)
+- [x] Envelope: attach `{ cause }` to `EnvelopeError` for diagnostics — all
+  three failure reasons carry the underlying error/zod issue.
+  (DONE 2026-09-16)
+- [x] Close-code contract tests: explicit error handlers + a 10s internal
+  deadline (a connect-refused race fails fast instead of hanging to the
+  suite timeout). (DONE 2026-09-16)
+- [x] Bound the reconnect `readyState` polls in both socket test twins with
+  internal deadlines. (DONE 2026-09-16)
+- [x] Comment the `""` session_id sentinel in `MobileSocket` heartbeat
+  (triggers the UUID stamp in `send`). (DONE 2026-09-16)
+- [x] Remove unused key-helper imports in the socket tests; unstub
   `vi.stubGlobal` in the terminal test; remove the dead `fitRef` in
-  `TerminalView` (brief-verbatim). (Plans 3-4 ledgers)
-- [ ] Add `@types/qrcode` to mobile devDeps if mobile tests are ever added to
-  a typecheck program that resolves the test import. (Plan 3, Task 4 ledger)
-- [ ] `npm audit` triage: 7 vulnerabilities (4 moderate, 2 high, 1 critical)
-  in the transitive tree after adding next/jsdom. (Plan 3, Task 3 report)
+  `TerminalView`. (DONE 2026-09-16)
+- [x] `@types/qrcode` in mobile devDeps — N/A as written: no mobile test
+  imports qrcode (the E2E package holds the dependency).
+  (DONE 2026-09-16)
+- [x] `npm audit` triage: 7 findings (4 moderate, 2 high, 1 critical), ALL
+  dev/build-time only — vitest/vite/esbuild (test tooling) and postcss
+  (bundled inside Next's build). None reach the relay runtime image or the
+  shipped PWA bundle. Fixes are breaking majors (vitest 5, next 16) —
+  deliberately NOT force-upgraded in a hygiene batch; revisit when those
+  majors are scheduled. (DONE 2026-09-16)
 
 ## Done (for reference — carried from earlier ledgers and since implemented)
 

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/react";
 import { TerminalView } from "../src/components/TerminalView.js";
 
@@ -14,6 +14,11 @@ vi.stubGlobal(
     disconnect() {}
   },
 );
+
+afterEach(() => {
+  // The stub must not leak into other test files' jsdom environments.
+  vi.unstubAllGlobals();
+});
 
 vi.mock("@xterm/xterm", () => {
   class Terminal {

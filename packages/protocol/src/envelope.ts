@@ -55,8 +55,9 @@ export class EnvelopeError extends Error {
       | "decryption_failed"
       | "invalid_event",
     message: string,
+    options?: { cause?: unknown },
   ) {
-    super(message);
+    super(message, options);
     this.name = "EnvelopeError";
   }
 }
@@ -96,7 +97,9 @@ export async function decryptEnvelope(
 ): Promise<WireEvent> {
   const parsed = EncryptedEnvelopeSchema.safeParse(envelope);
   if (!parsed.success) {
-    throw new EnvelopeError("malformed_envelope", "envelope failed schema validation");
+    throw new EnvelopeError("malformed_envelope", "envelope failed schema validation", {
+      cause: parsed.error,
+    });
   }
   let plain: ArrayBuffer;
   try {
@@ -105,18 +108,22 @@ export async function decryptEnvelope(
       key,
       base64UrlToBytes(parsed.data.ciphertext),
     );
-  } catch {
-    throw new EnvelopeError("decryption_failed", "envelope failed to decrypt with this key");
+  } catch (err) {
+    throw new EnvelopeError("decryption_failed", "envelope failed to decrypt with this key", {
+      cause: err,
+    });
   }
   let parsedEvent: unknown;
   try {
     parsedEvent = JSON.parse(textDecoder.decode(plain));
-  } catch {
-    throw new EnvelopeError("invalid_event", "decrypted payload is not JSON");
+  } catch (err) {
+    throw new EnvelopeError("invalid_event", "decrypted payload is not JSON", { cause: err });
   }
   const event = WireEventSchema.safeParse(parsedEvent);
   if (!event.success) {
-    throw new EnvelopeError("invalid_event", "decrypted payload is not a wire event");
+    throw new EnvelopeError("invalid_event", "decrypted payload is not a wire event", {
+      cause: event.error,
+    });
   }
   return event.data;
 }

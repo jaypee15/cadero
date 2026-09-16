@@ -3,9 +3,7 @@ import { describe, expect, it } from "vitest";
 import WebSocketImpl from "ws";
 import {
   decryptEnvelope,
-  exportSessionKey,
   generateSessionKey,
-  importSessionKey,
 } from "@cadero/protocol";
 import { createServer } from "@cadero/relay/server.js";
 import { createRoomStore } from "@cadero/relay/rooms.js";
@@ -127,7 +125,13 @@ describe("MobileSocket against the real relay", () => {
     // so wait for the phone's backoff-driven reconnect to land before the peer
     // sends; otherwise the single heartbeat is lost mid-outage.
     const phoneSocket = phone as unknown as { ws?: { readyState: number } };
+    // Internal deadline: a poll that never lands must fail fast, not hang
+    // until the suite timeout.
+    const reconnectDeadline = Date.now() + 20000;
     while (phoneSocket.ws?.readyState !== 1) {
+      if (Date.now() > reconnectDeadline) {
+        throw new Error("socket never reconnected (internal deadline)");
+      }
       await new Promise((r) => setTimeout(r, 100));
     }
     const back = onceEvent(phone);

@@ -82,6 +82,8 @@ export class MobileSocket {
         this.heartbeatTimer = setInterval(() => {
           void this.send({
             event: "HEARTBEAT",
+            // The empty session_id sentinel: MobileSocket.send stamps a UUID
+            // when session_id is falsy — a heartbeat carries no session.
             meta: { session_id: "" },
             payload: {},
           }).catch(() => {

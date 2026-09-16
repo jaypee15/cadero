@@ -136,7 +136,13 @@ describe("CaderoSocket against the real relay", () => {
     // The CLI reconnects on its own backoff schedule and the relay has no
     // replay, so wait for it to be back on the wire before the phone sends.
     const cliSocket = cli as unknown as { ws?: { readyState: number } };
+    // Internal deadline: a poll that never lands must fail fast, not hang
+    // until the suite timeout.
+    const reconnectDeadline = Date.now() + 20000;
     while (cliSocket.ws?.readyState !== 1) {
+      if (Date.now() > reconnectDeadline) {
+        throw new Error("socket never reconnected (internal deadline)");
+      }
       await new Promise((r) => setTimeout(r, 100));
     }
     const back = onceEvent(cli);
