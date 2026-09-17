@@ -61,6 +61,9 @@ export class AgentSession {
   private timeoutTimer: ReturnType<typeof setTimeout> | undefined;
   private reemitTimer: ReturnType<typeof setInterval> | undefined;
   private scrollback = "";
+  // Quiet-period flush for held partial lines (no newline yet).
+  private static readonly HELD_FLUSH_MS = 400;
+  private heldFlushTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(opts: AgentSessionOptions) {
     this.opts = opts;
@@ -85,6 +88,10 @@ export class AgentSession {
 
   stop(): void {
     this.clearInterceptTimers();
+    if (this.heldFlushTimer) {
+      clearTimeout(this.heldFlushTimer);
+      this.heldFlushTimer = undefined;
+    }
     this.pty?.kill();
     this.pty = undefined;
   }
@@ -138,6 +145,21 @@ export class AgentSession {
       this.lineBuffer = unforwarded.slice(unforwarded.length - AgentSession.MAX_HELD_LINE);
     } else {
       this.lineBuffer = unforwarded;
+    }
+    // A held partial line with no newline (TUI redraws, approval echoes like
+    // printf " approved:%s") would otherwise never reach the phone — the
+    // complete-line forwarding keeps it in lineBuffer indefinitely, and the
+    // phone lags one interaction behind. Flush it after a short quiet
+    // period; real output following later simply appends.
+    if (this.lineBuffer.length > 0) {
+      if (this.heldFlushTimer) clearTimeout(this.heldFlushTimer);
+      this.heldFlushTimer = setTimeout(() => {
+        this.heldFlushTimer = undefined;
+        const held = this.lineBuffer;
+        if (held.length === 0) return;
+        this.lineBuffer = "";
+        this.sendTerminal(held);
+      }, AgentSession.HELD_FLUSH_MS);
     }
   }
 

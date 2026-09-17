@@ -115,18 +115,26 @@ export class MobileSocket {
     try {
       envelope = JSON.parse(raw);
     } catch {
+      console.log(`[e2e-trace] json-drop ${raw.slice(0, 40)}`);
       return; // transport garbage: drop
     }
     void decryptEnvelope(this.opts.sessionKey, envelope as EncryptedEnvelope)
       .then((event) => this.onEvent(event))
       .catch((err: unknown) => {
+        console.log(
+          `[e2e-trace] decrypt-fail ${err instanceof EnvelopeError ? err.reason : String(err)}`,
+        );
         if (err instanceof EnvelopeError && err.reason === "decryption_failed") {
           this.reconnectDisabled = true;
           this.opts.onFatal?.(err);
           this.ws?.close();
           return;
         }
-        // invalid_event / malformed_envelope: drop the frame
+        // invalid_event / malformed_envelope: drop the frame — but say so;
+        // a silent drop here looks exactly like "the phone missed a frame".
+        console.log(
+          `[e2e-trace] dropped frame: ${err instanceof Error ? err.message : String(err)}`,
+        );
       });
   }
 

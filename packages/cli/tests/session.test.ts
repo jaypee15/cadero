@@ -561,6 +561,34 @@ describe("AgentSession", () => {
     session.stop();
   }, 10000);
 
+  it("flushes a trailing partial line after a bounded delay (no newline required)", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    const agent = stubAgent(dir, 'printf "approved without newline"; sleep 30');
+    const socket = new FakeSocket();
+    const session = new AgentSession({
+      agent: "claude",
+      command: "bash",
+      args: [agent],
+      cwd: dir,
+      socket: socket as never,
+      sessionId: "sess_1",
+      config: { safeCommands: [] },
+    });
+    session.start();
+    // No newline is ever emitted and the agent keeps running; the partial
+    // line must still reach the phone within ~1s.
+    await socket.until(
+      (sent) =>
+        sent.some(
+          (e) =>
+            e.event === "TERMINAL_DATA" &&
+            String((e.payload as { chunk?: string }).chunk).includes("newline"),
+        ),
+      3000,
+    );
+    session.stop();
+  }, 10000);
+
   it("bounds the catch-up replay to the recent window", async () => {
     dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
     const agent = stubAgent(

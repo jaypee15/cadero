@@ -53,6 +53,14 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
   ciphertext only). Relay also hardened: bounded publish-readiness wait + ws
   ping/pong pruning of half-open members. nginx serves the HTML shell with
   `no-cache, must-revalidate`.
+- [x] The deeper root cause behind the "one query behind" symptom (DONE
+  2026-09-17): the CLI forwarded only COMPLETE lines to the phone, and the
+  approve echo (printf " approved:%s" — no trailing newline) sat in
+  lineBuffer indefinitely, so the phone stayed one interaction behind until
+  the next query flushed it. Fixed with a 400ms quiet-period flush for held
+  partial lines (`session.ts` HELD_FLUSH_MS) — TUI redraws and newline-free
+  tails now stream to the phone. This also eliminated the long-standing
+  opencode E2E flake (the parked backlog item's root cause).
 
 ## Testing gaps
 
@@ -146,17 +154,11 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
   keys now rest in per-tab browser storage (documented in
   `packages/mobile/src/app/oauth.ts`). Store: `packages/mobile/src/state/sessionStore.ts`
   (14 unit tests); UI tabs/refill/routing: `CaderoApp.tsx` (5 component tests).
-- [ ] Parked: opencode E2E final assertion is intermittent — the phone's
-  terminal intermittently misses the approval echo (" approved:") after the
-  overlay's Approve tap, while the CLI side mirrors it correctly. The
-  always-mounted TerminalView's refit after the phase transition is the
-  prime suspect (the received frames arrive per the ws instrumentation —
-  trace logs saved in /tmp/e2e*.log, instrumentation included: relay
-  join/publish traces, page console capture, a ?debug=1 status element in
-  the PWA). The real-device flow worked when the dialog was approved, so
-  this is a CI-coverage gap, not a phone-flow blocker. Next step: phone-side
-  frame-count instrumentation (?debug=1 status element) to pin the failing
-  layer. (Session feedback 2026-09-15)
+- [x] Parked: opencode E2E final assertion was intermittent — ROOT CAUSED
+  2026-09-17: the CLI held newline-free output (the approval echo) in
+  lineBuffer, so the phone lagged one interaction behind. Fixed by the
+  400ms held-line flush (see the dedicated entry above); the E2E now passes
+  consistently on the first attempt. (Session feedback 2026-09-15)
 - [ ] Attach to an agent session started *outside* Cadero (plain `claude` in
   a normal terminal): currently impossible by design — the daemon must own
   the PTY from process start to intercept prompts, mirror output, and sync
