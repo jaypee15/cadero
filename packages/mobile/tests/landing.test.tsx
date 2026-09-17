@@ -51,7 +51,7 @@ describe("landing page (/)", () => {
   it("renders the how-it-works steps", () => {
     render(<Home />);
     expect(screen.getByText(/Start a session/i)).toBeDefined();
-    expect(screen.getByText(/Scan from the phone/i)).toBeDefined();
+    expect(screen.getByText(/Scan the QR with your phone/i)).toBeDefined();
     expect(screen.getByText(/Stay in control/i)).toBeDefined();
   });
 });
