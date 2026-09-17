@@ -3,7 +3,6 @@ import { importSessionKey, type WireEvent } from "@cadero/protocol";
 import { MobileSocket, type MobileSocketOptions } from "../realtime/socket";
 import { readStoredToken } from "../app/oauth";
 import {
-  GAP_MARKER,
   initialSessionState,
   reduceSession,
   type InterceptState,
@@ -34,6 +33,8 @@ export interface SessionView {
   intercept: InterceptState | null;
   gapped: boolean;
   chunkCount: number;
+  /** Every received frame of any kind (heartbeats included) — debug strip. */
+  rxCount: number;
   closedReason?: string;
   terminal: string;
 }
@@ -41,6 +42,11 @@ export interface SessionView {
 export interface SessionSnapshot {
   sessions: readonly SessionView[];
   activeId: string | null;
+}
+
+export interface TerminalSink {
+  write(chunk: string): void;
+  clear(): void;
 }
 
 export interface SessionStoreOptions {
@@ -67,6 +73,7 @@ interface SessionRuntime {
   key: string;
   state: SessionState;
   terminal: string;
+  rxCount: number;
   socket: SocketLike | null;
 }
 
@@ -83,7 +90,7 @@ export interface SessionStore {
   removeSession(roomId: string): void;
   setActive(roomId: string): void;
   setTermDims(dims: { cols: number; rows: number } | undefined): void;
-  setSink(write: ((chunk: string) => void) | null): void;
+  setSink(terminalSink: TerminalSink | null): void;
   sendResize(): Promise<void>;
   sendPrompt(prompt: string): Promise<void>;
   resolve(decision: "APPROVE" | "DENY"): Promise<void>;
@@ -101,12 +108,12 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
   let restored = false;
   let termDims: { cols: number; rows: number } | undefined;
   let hasPersisted = false;
-  let sink: ((chunk: string) => void) | null = null;
+  let sink: TerminalSink | null = null;
 
   function emit(chunk: string): void {
     // Called only for the ACTIVE session's frames, synchronously in the
     // socket callback, so the terminal stays ordered with the buffer.
-    if (sink) sink(chunk);
+    if (sink) sink.write(chunk);
   }
 
   function isActive(roomId: string): boolean {
@@ -152,6 +159,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         intercept: rt.state.intercept,
         gapped: rt.state.gapped,
         chunkCount: rt.state.chunkCount,
+        rxCount: rt.rxCount,
         ...(rt.state.closedReason !== undefined ? { closedReason: rt.state.closedReason } : {}),
         terminal: rt.terminal,
       })),
@@ -185,6 +193,25 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
       });
   }
 
+  function requestCatchup(rt: SessionRuntime): void {
+    if (!rt.socket) return;
+    // The phone's local view is stale after a gap: clear it (buffer + the
+    // visible terminal) so the daemon's scrollback replay replaces it, then
+    // ask for the catch-up. Frames are ordered on the single ws, so the
+    // replay lands before any newer live output.
+    rt.terminal = "";
+    if (isActive(rt.roomId) && sink) sink.clear();
+    void rt.socket
+      .send({
+        event: "TERMINAL_CATCHUP_REQUEST",
+        meta: { session_id: "mobile" },
+        payload: {},
+      })
+      .catch(() => {
+        /* dropped during a reconnect gap: the next gap/request retries */
+      });
+  }
+
   function makeSocketHandlers(roomId: string): Pick<
     MobileSocketOptions,
     "onEvent" | "onGap" | "onClosed" | "onFatal"
@@ -207,6 +234,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     const rt = runtimeFor(roomId);
     if (!rt) return;
     console.log("[e2e-trace] received", event.event);
+    rt.rxCount += 1;
     if (event.event === "SESSION_ENDED") {
       rt.state = reduceSession(rt.state, { type: "EVENT", event });
       void rt.socket?.close();
@@ -225,12 +253,14 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     const rt = runtimeFor(roomId);
     if (!rt) return;
     console.log("[e2e-trace] GAP fired");
-    appendTerminal(rt, GAP_MARKER);
-    if (isActive(roomId)) emit(GAP_MARKER);
     rt.state = reduceSession(rt.state, { type: "GAP" });
     // Re-assert the viewport after a reconnect gap: a resize frame lost while
     // the relay was down must not leave the agent drawing at stale dimensions.
     sendResize(rt);
+    // Frames emitted while the phone was gone are lost (the relay replays
+    // nothing) — clear the stale local view and ask the daemon for its
+    // scrollback so the terminal converges to the current state.
+    requestCatchup(rt);
     commit();
   }
 
@@ -256,8 +286,11 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     await rt.socket.connect();
     // The phone's terminal is now the authoritative viewport for this room.
     sendResize(rt);
+    // Ask the daemon for its scrollback: the replay replaces whatever the
+    // local view holds, so even a first-time join shows the recent terminal.
+    requestCatchup(rt);
     if (announce) {
-      const line = `\n[connected to room ${rt.roomId} — live output from here on; earlier output is not replayed]\n`;
+      const line = `\n[connected to room ${rt.roomId} — replayed recent output above, live output follows]\n`;
       appendTerminal(rt, line);
       if (isActive(rt.roomId)) emit(line);
     }
@@ -291,6 +324,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
         key: parsed.key,
         state: { ...initialSessionState, phase: "connecting" },
         terminal: "",
+        rxCount: 0,
         socket: null,
       };
       rt.socket = socketFactory({
@@ -338,8 +372,8 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
     termDims = dims;
   },
 
-  setSink(write) {
-    sink = write;
+  setSink(terminalSink) {
+    sink = terminalSink;
   },
 
   async sendResize() {
@@ -419,6 +453,7 @@ export function createSessionStore(options: SessionStoreOptions = {}): SessionSt
             ...(p.closedReason !== undefined ? { closedReason: p.closedReason } : {}),
           },
           terminal: typeof p.terminal === "string" ? p.terminal : "",
+          rxCount: 0,
           socket: null,
         };
         runtimes.set(p.roomId, rt);

@@ -4,6 +4,41 @@ import type { AddressInfo } from "node:net";
 import { generateSessionKey, encryptEnvelope } from "@cadero/protocol";
 import { createServer } from "../src/server.js";
 import { createRoomStore } from "../src/rooms.js";
+import { awaitMembersReady, joinRoom, leaveRoom, pruneStaleConnections } from "../src/socket.js";
+
+const pruned: number[] = [];
+
+describe("relay hardening helpers", () => {
+  it("bounds the publish-readiness wait so a wedged member cannot stall a room", async () => {
+    const never: Promise<void> = new Promise(() => {});
+    const members = new Set([
+      { ready: never, resolveReady: () => {}, socket: null as never, lastPong: 0 },
+    ]);
+    const start = Date.now();
+    await awaitMembersReady(members, 100);
+    expect(Date.now() - start).toBeLessThan(1000);
+  });
+
+  it("prunes members that stopped answering pings (half-open ghosts)", () => {
+    const socket = { terminate: () => pruned.push(1) } as never;
+    const member = { ready: Promise.resolve(), resolveReady: () => {}, socket, lastPong: Date.now() };
+    joinRoom("room_prune", member as never);
+    // A fresh member survives; a member silent past the deadline is pruned.
+    pruneStaleConnections(Date.now());
+    expect(pruned).toHaveLength(0);
+    const ghost = {
+      ready: Promise.resolve(),
+      resolveReady: () => {},
+      socket,
+      lastPong: Date.now() - 120000,
+    };
+    joinRoom("room_prune2", ghost as never);
+    pruneStaleConnections(Date.now());
+    expect(pruned).toHaveLength(1);
+    leaveRoom("room_prune", member as never);
+    leaveRoom("room_prune2", ghost as never);
+  });
+});
 
 const redisUrl = "redis://127.0.0.1:6379";
 

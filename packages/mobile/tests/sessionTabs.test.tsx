@@ -169,7 +169,8 @@ describe("session tabs", () => {
     });
     const prompt = sessions[1].sent.find((s) => s.event.event === "EXECUTE_AGENT_PROMPT")!;
     expect((prompt.event.payload as { prompt: string }).prompt).toBe("list the src dir");
-    // The background session must NOT have been prompted.
-    expect(sessions[0].sent).toHaveLength(0);
+    // The background session must NOT have been prompted (its only frames
+    // are join-time catch-up requests).
+    expect(sessions[0].sent.some((s) => s.event.event === "EXECUTE_AGENT_PROMPT")).toBe(false);
   });
 });

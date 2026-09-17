@@ -43,6 +43,16 @@ that surfaced it. Nothing here blocks the MVP release except the items marked
   when a room empties. Threat model decided: warranted — the window is the
   room TTL and captured frames could reorder/duplicate the agent feed.
   (DONE 2026-09-16; Plans 3-4 final reviews)
+- [x] Reconnect catch-up (DONE 2026-09-16, fixing the "phone misses the
+  response" production report): frames emitted while the phone was
+  disconnected were lost forever (the relay replays nothing), so the phone
+  could sit one query behind after a mobile-network blip. The phone now
+  sends `TERMINAL_CATCHUP_REQUEST` on every join and reconnect gap; the CLI
+  replays its bounded 8KB scrollback; the phone clears its local view first
+  so the replay replaces it. Zero-knowledge holds (CLI→phone, relay sees
+  ciphertext only). Relay also hardened: bounded publish-readiness wait + ws
+  ping/pong pruning of half-open members. nginx serves the HTML shell with
+  `no-cache, must-revalidate`.
 
 ## Testing gaps
 

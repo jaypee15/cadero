@@ -46,6 +46,11 @@ export class AgentSession {
   // dialogs (opencode's permission block) span several streamed lines, so
   // detection needs context beyond a single line.
   private static readonly MAX_WINDOW = 800;
+  // Bounded scrollback kept for catch-up: when a phone joins (or rejoins
+  // after a reconnect gap), the daemon replays this window so the phone
+  // converges to the terminal's current state. Frames emitted while the
+  // phone was gone are otherwise lost forever (the relay replays nothing).
+  private static readonly SCROLLBACK_LIMIT = 8192;
   private readonly opts: AgentSessionOptions;
   private pty: PtySession | undefined;
   private pending: { command: string; approveInput?: string } | undefined;
@@ -55,6 +60,7 @@ export class AgentSession {
   private recent = "";
   private timeoutTimer: ReturnType<typeof setTimeout> | undefined;
   private reemitTimer: ReturnType<typeof setInterval> | undefined;
+  private scrollback = "";
 
   constructor(opts: AgentSessionOptions) {
     this.opts = opts;
@@ -136,6 +142,19 @@ export class AgentSession {
   }
 
   private async handleRemote(event: WireEvent): Promise<void> {
+    if (event.event === "TERMINAL_CATCHUP_REQUEST") {
+      // A phone joined or rejoined after a gap: replay the bounded scrollback
+      // so its view converges to the terminal's current state. The phone
+      // clears its own buffer before requesting, so no dedupe is needed.
+      if (this.scrollback.length > 0) {
+        this.trySend({
+          event: "TERMINAL_DATA",
+          meta: { session_id: this.opts.sessionId },
+          payload: { chunk: `${this.scrollback}\n[catch-up — recent output above, live output follows]\n` },
+        });
+      }
+      return;
+    }
     if (event.event === "RESOLVE_INTERCEPT") {
       if (!this.pending) return; // stray resolution: nothing to resolve
       this.clearInterceptTimers();
@@ -287,6 +306,7 @@ export class AgentSession {
   }
 
   private sendTerminal(chunk: string): void {
+    this.scrollback = (this.scrollback + chunk).slice(-AgentSession.SCROLLBACK_LIMIT);
     this.trySend({
       event: "TERMINAL_DATA",
       meta: { session_id: this.opts.sessionId },

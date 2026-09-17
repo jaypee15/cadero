@@ -519,4 +519,86 @@ describe("AgentSession", () => {
     expect(socket.sent.filter((e) => e.event === "INTERCEPT_REQUIRED").length).toBe(count);
     session.stop();
   }, 10000);
+
+  it("replays recent scrollback on TERMINAL_CATCHUP_REQUEST", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    const agent = stubAgent(dir, 'printf "line-one\\nline-two\\nline-three\\n"');
+    const socket = new FakeSocket();
+    const session = new AgentSession({
+      agent: "claude",
+      command: "bash",
+      args: [agent],
+      cwd: dir,
+      socket: socket as never,
+      sessionId: "sess_1",
+      config: { safeCommands: [] },
+    });
+    session.start();
+    await socket.until((sent) => sent.some((e) => e.event === "TERMINAL_DATA"));
+    const framesBefore = socket.sent.filter((e) => e.event === "TERMINAL_DATA").length;
+    socket.handler!({
+      event: "TERMINAL_CATCHUP_REQUEST",
+      meta: { session_id: "sess_1" },
+      payload: {},
+    } as WireEvent);
+    // A NEW frame must appear after the request — the replay is not the
+    // original output passing through.
+    await socket.until(
+      (sent) =>
+        sent.filter((e) => e.event === "TERMINAL_DATA").length > framesBefore &&
+        sent
+          .slice(framesBefore)
+          .some(
+            (e) =>
+              e.event === "TERMINAL_DATA" &&
+              String((e.payload as { chunk?: string }).chunk).includes("line-three"),
+          ),
+    );
+    // The replay is a response to the request, never an echo of it.
+    expect(
+      socket.sent.filter((e) => e.event === "TERMINAL_CATCHUP_REQUEST"),
+    ).toHaveLength(0);
+    session.stop();
+  }, 10000);
+
+  it("bounds the catch-up replay to the recent window", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadence-sess-"));
+    const agent = stubAgent(
+      dir,
+      "for i in $(seq 1 400); do printf '%s\\n' \"$i-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"; done",
+    );
+    const socket = new FakeSocket();
+    const session = new AgentSession({
+      agent: "claude",
+      command: "bash",
+      args: [agent],
+      cwd: dir,
+      socket: socket as never,
+      sessionId: "sess_1",
+      config: { safeCommands: [] },
+    });
+    session.start();
+    await socket.until(
+      (sent) => sent.some((e) => e.event === "TERMINAL_DATA"),
+      10000,
+    );
+    socket.handler!({
+      event: "TERMINAL_CATCHUP_REQUEST",
+      meta: { session_id: "sess_1" },
+      payload: {},
+    } as WireEvent);
+    await socket.until(
+      (sent) =>
+        sent.filter((e) => e.event === "TERMINAL_DATA").length >= 2,
+      5000,
+    );
+    // Every replay frame is bounded; the total forwarded output across the
+    // session is far larger than the replay cap.
+    const dataFrames = socket.sent.filter((e) => e.event === "TERMINAL_DATA");
+    const oversized = dataFrames.filter(
+      (e) => String((e.payload as { chunk?: string }).chunk).length > 20000,
+    );
+    expect(oversized).toHaveLength(0);
+    session.stop();
+  }, 15000);
 });

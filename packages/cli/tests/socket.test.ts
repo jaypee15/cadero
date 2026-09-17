@@ -328,6 +328,93 @@ describe("deny path through the relay", () => {
   }, 20000);
 });
 
+describe("catch-up through the real relay", () => {
+  it("replays recent scrollback to a late-joining phone", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cadero-catchup-"));
+    const agent = join(dir, "stub-agent.sh");
+    writeFileSync(agent, 'printf "scrollback-one\\nscrollback-two\\n"; sleep 60\n');
+    chmodSync(agent, 0o755);
+
+    const store = createRoomStore(redisUrl);
+    const roomId = await store.createRoom();
+    store.disconnect();
+
+    const app = createServer({ redisUrl, verifyUser: async () => "cli" });
+    await app.listen({ port: 0 });
+    const port = (app.server.address() as { port: number }).port;
+    const relayUrl = `http://127.0.0.1:${port}`;
+
+    const sessionKey = await generateSessionKey();
+    const cli = new CaderoSocket({
+      relayUrl,
+      roomId,
+      token: "t",
+      sessionKey,
+      sessionId: "sess_cli",
+    });
+    const phone = new CaderoSocket({
+      relayUrl,
+      roomId,
+      token: "t",
+      sessionKey,
+      sessionId: "sess_phone",
+    });
+    const received: WireEvent[] = [];
+    phone.onEvent((event) => received.push(event));
+    await cli.connect();
+
+    const session = new AgentSession({
+      agent: "claude",
+      command: "bash",
+      args: [agent],
+      cwd: dir,
+      socket: cli,
+      sessionId: "sess_cli",
+      config: { safeCommands: [] },
+    });
+    session.start();
+    // The agent emitted while nobody was watching; the frames are forwarded
+    // but the phone only joins now.
+    await new Promise((r) => setTimeout(r, 800));
+    await phone.connect();
+    await phone.send({
+      event: "TERMINAL_RESIZE",
+      meta: { session_id: "mobile" },
+      payload: { cols: 80, rows: 24 },
+    });
+    await phone.send({
+      event: "TERMINAL_CATCHUP_REQUEST",
+      meta: { session_id: "mobile" },
+      payload: {},
+    });
+
+    const deadline = Date.now() + 8000;
+    while (
+      Date.now() < deadline &&
+      !received.some(
+        (e) =>
+          e.event === "TERMINAL_DATA" &&
+          String((e.payload as { chunk?: string }).chunk).includes("scrollback-two"),
+      )
+    ) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    const replay = received.find(
+      (e) =>
+        e.event === "TERMINAL_DATA" &&
+        String((e.payload as { chunk?: string }).chunk).includes("scrollback-two"),
+    );
+    expect(replay).toBeDefined();
+    expect(String((replay!.payload as { chunk?: string }).chunk)).toContain("scrollback-one");
+
+    session.stop();
+    await cli.close();
+    await phone.close();
+    await app.close();
+    rmSync(dir, { recursive: true, force: true });
+  }, 20000);
+});
+
 describe("envelope header stamping", () => {
   it("stamps a stable per-instance sender and a monotonic seq on every frame", async () => {
     const store = createRoomStore(redisUrl);

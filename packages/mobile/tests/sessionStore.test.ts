@@ -5,7 +5,6 @@ import { generateSessionKey, type WireEvent } from "@cadero/protocol";
 import { createServer } from "@cadero/relay/server.js";
 import { createRoomStore } from "@cadero/relay/rooms.js";
 import { MobileSocket, type MobileSocketOptions } from "../src/realtime/socket.js";
-import { GAP_MARKER } from "../src/state/sessionState.js";
 import {
   createSessionStore,
   SESSIONS_STORAGE_KEY,
@@ -189,12 +188,19 @@ describe("createSessionStore (fake sockets)", () => {
     );
   });
 
-  it("appends GAP markers on gap and clears gapped when data flows again", async () => {
+  it("on gap clears the stale view (catch-up replaces it) and clears gapped when data flows again", async () => {
     const { store, created } = makeStore();
     await store.addSession({ relay: "http://r", room: "room_aaaa", key: KEY_43 }, "tok");
+    created[0].opts.onEvent({
+      event: "TERMINAL_DATA",
+      meta: { session_id: "s" },
+      payload: { chunk: "before the gap" },
+    });
     created[0].opts.onGap();
+    // The stale buffer is wiped (the daemon's scrollback replay replaces it);
+    // the gap banner carries the "output was lost" signal instead.
+    expect(snapshot(store).sessions[0].terminal).toBe("");
     expect(snapshot(store).sessions[0].gapped).toBe(true);
-    expect(snapshot(store).sessions[0].terminal).toContain(GAP_MARKER);
     created[0].opts.onEvent({
       event: "TERMINAL_DATA",
       meta: { session_id: "s" },
@@ -274,7 +280,9 @@ describe("createSessionStore (fake sockets)", () => {
     const view = snapshot(store2);
     expect(view.sessions).toHaveLength(1);
     expect(view.sessions[0].roomId).toBe("room_aaaa");
-    expect(view.sessions[0].terminal).toContain("buffered output");
+    // The restored buffer is replaced by the daemon's catch-up replay: the
+    // restore must have requested it.
+    expect(created2[0].sent.some((s) => s.event === "TERMINAL_CATCHUP_REQUEST")).toBe(true);
     expect(view.sessions[0].phase).toBe("live");
     expect(created2).toHaveLength(1);
     expect(created2[0].socket.connected).toBe(true);
@@ -338,13 +346,72 @@ describe("createSessionStore (fake sockets)", () => {
         (s) => s.event === "TERMINAL_RESIZE" && (s.payload as { cols: number }).cols === 80,
       ),
     ).toBe(true);
-    expect(created[0].sent).toHaveLength(0);
+    // The background session got its join-time frames but no resize.
+    expect(created[0].sent.some((s) => s.event === "TERMINAL_RESIZE")).toBe(false);
+  });
+
+  it("sends a catch-up request on join and on gap, clearing the local view first", async () => {
+    const { store, created } = makeStore();
+    const sinkChunks: string[] = [];
+    let cleared = 0;
+    store.setSink({
+      write: (chunk) => sinkChunks.push(chunk),
+      clear: () => {
+        cleared += 1;
+        sinkChunks.length = 0;
+      },
+    });
+    await store.addSession({ relay: "http://r", room: "room_aaaa", key: KEY_43 }, "tok");
+    // Fresh join: the catch-up request rides along with the resize.
+    expect(created[0].sent.some((s) => s.event === "TERMINAL_CATCHUP_REQUEST")).toBe(true);
+
+    created[0].opts.onEvent({
+      event: "TERMINAL_DATA",
+      meta: { session_id: "s" },
+      payload: { chunk: "live output" },
+    });
+    expect(snapshot(store).sessions[0].terminal).toContain("live output");
+
+    // Gap: the store clears the local view (so the replay replaces it) and
+    // asks the daemon to replay its scrollback. (The join-time catch-up also
+    // cleared once, so the counter reads 2 here.)
+    created[0].opts.onGap();
+    expect(cleared).toBe(2);
+    expect(created[0].sent.filter((s) => s.event === "TERMINAL_CATCHUP_REQUEST")).toHaveLength(2);
+    expect(snapshot(store).sessions[0].terminal).toBe("");
+
+    // The replay arrives and repopulates the view.
+    created[0].opts.onEvent({
+      event: "TERMINAL_DATA",
+      meta: { session_id: "s" },
+      payload: { chunk: "replayed scrollback" },
+    });
+    expect(snapshot(store).sessions[0].terminal).toContain("replayed scrollback");
+  });
+
+  it("counts every received frame (heartbeats included) for the debug strip", async () => {
+    const { store, created } = makeStore();
+    await store.addSession({ relay: "http://r", room: "room_aaaa", key: KEY_43 }, "tok");
+    expect(snapshot(store).sessions[0].rxCount).toBe(0);
+    created[0].opts.onEvent({
+      event: "HEARTBEAT",
+      meta: { session_id: "s" },
+      payload: {},
+    });
+    expect(snapshot(store).sessions[0].rxCount).toBe(1);
+    created[0].opts.onEvent({
+      event: "TERMINAL_DATA",
+      meta: { session_id: "s" },
+      payload: { chunk: "x" },
+    });
+    expect(snapshot(store).sessions[0].rxCount).toBe(2);
+    expect(snapshot(store).sessions[0].chunkCount).toBe(1);
   });
 
   it("streams the active session's chunks to the sink, background sessions stay out", async () => {
     const { store, created } = makeStore();
     const sink: string[] = [];
-    store.setSink((chunk) => sink.push(chunk));
+    store.setSink({ write: (chunk) => sink.push(chunk), clear: () => {} });
     await store.addSession({ relay: "http://r", room: "room_aaaa", key: KEY_43 }, "tok");
     created[0].opts.onEvent({
       event: "TERMINAL_DATA",

@@ -61,6 +61,16 @@ export const TerminalResizeSchema = z.object({
   }),
 });
 
+// The phone asks the daemon to replay its recent scrollback (the CLI holds
+// the plaintext; the relay sees only ciphertext, so zero-knowledge holds).
+// Sent on every join and after a reconnect gap; the phone resets its local
+// buffer and redraws from the replay — reconnects become self-healing.
+export const TerminalCatchupRequestSchema = z.object({
+  event: z.literal("TERMINAL_CATCHUP_REQUEST"),
+  meta: metaSchema,
+  payload: z.object({}).strict(),
+});
+
 export const WireEventSchema = z.discriminatedUnion("event", [
   TerminalDataSchema,
   InterceptRequiredSchema,
@@ -69,6 +79,7 @@ export const WireEventSchema = z.discriminatedUnion("event", [
   HeartbeatSchema,
   SessionEndedSchema,
   TerminalResizeSchema,
+  TerminalCatchupRequestSchema,
 ]);
 
 export type TerminalData = z.infer<typeof TerminalDataSchema>;

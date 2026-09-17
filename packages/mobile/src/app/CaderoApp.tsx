@@ -59,7 +59,7 @@ export function CaderoApp({ store = defaultSessionStore }: { store?: SessionStor
   const handleTerminalReady = useCallback(
     (api: TerminalApi) => {
       termRef.current = api;
-      store.setSink((chunk) => api.write(chunk));
+      store.setSink({ write: (chunk) => api.write(chunk), clear: () => api.clear() });
       refillRef.current();
     },
     [store],
@@ -393,8 +393,8 @@ export function CaderoApp({ store = defaultSessionStore }: { store?: SessionStor
             data-debug-status="true"
             className="border-t border-line bg-surface-1 px-3 py-1 text-center font-mono text-[10px] text-ink-faint"
           >
-            frames: {active?.chunkCount ?? 0} · phase: {activePhase} · gapped:{" "}
-            {String(active?.gapped ?? false)}
+            frames: {active?.chunkCount ?? 0} · received: {active?.rxCount ?? 0} · phase:{" "}
+            {activePhase} · gapped: {String(active?.gapped ?? false)}
             {active?.intercept ? " · intercept pending" : ""}
           </div>
         )}

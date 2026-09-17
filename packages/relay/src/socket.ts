@@ -15,7 +15,12 @@ function framesChannel(roomId: string): string {
 interface RoomMember {
   ready: Promise<void>;
   resolveReady: () => void;
+  socket: import("ws").WebSocket;
+  lastPong: number;
 }
+
+const PONG_DEADLINE_MS = 60000;
+const PING_INTERVAL_MS = 20000;
 
 // Redis pub/sub only delivers to subscribers that are already subscribed, so
 // members of a room are tracked here with a promise that resolves once their
@@ -39,7 +44,7 @@ interface RoomMember {
 // drops phone frames, which the staleness detector only notices after 45s.
 const roomMembers = new Map<string, Set<RoomMember>>();
 
-function joinRoom(roomId: string, member: RoomMember): void {
+export function joinRoom(roomId: string, member: RoomMember): void {
   let members = roomMembers.get(roomId);
   if (!members) {
     members = new Set();
@@ -48,7 +53,7 @@ function joinRoom(roomId: string, member: RoomMember): void {
   members.add(member);
 }
 
-function leaveRoom(roomId: string, member: RoomMember): void {
+export function leaveRoom(roomId: string, member: RoomMember): void {
   const members = roomMembers.get(roomId);
   if (!members) {
     return;
@@ -58,6 +63,51 @@ function leaveRoom(roomId: string, member: RoomMember): void {
     roomMembers.delete(roomId);
     lastSeenSeq.delete(roomId);
   }
+}
+
+// Bounded readiness wait: publishEnvelope used to await every member's
+// readiness promise unconditionally — a member wedged before its join
+// completed could stall the whole room's fanout forever. The wait is now
+// capped: a member that is not ready in time simply misses that frame (it
+// is presumably dead or about to close; the catch-up replay covers the loss).
+export async function awaitMembersReady(
+  members: Iterable<RoomMember>,
+  timeoutMs = 2000,
+): Promise<void> {
+  await Promise.race([
+    Promise.all([...members].map((m) => m.ready)),
+    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
+}
+
+// Half-open members (phone went offline without a TCP close) linger in the
+// map forever — the close event never fires. The relay pings members
+// periodically and terminates any whose pong bookkeeping has gone silent
+// past the deadline; their sockets close, leaveRoom runs, and the room's
+// member set stays truthful.
+export function pruneStaleConnections(now: number): void {
+  for (const members of roomMembers.values()) {
+    for (const member of members) {
+      if (now - member.lastPong > PONG_DEADLINE_MS) {
+        member.socket.terminate();
+      }
+    }
+  }
+}
+
+let pinger: ReturnType<typeof setInterval> | undefined;
+function ensurePinger(): void {
+  if (pinger) return;
+  pinger = setInterval(() => {
+    const now = Date.now();
+    pruneStaleConnections(now);
+    for (const members of roomMembers.values()) {
+      for (const member of members) {
+        if (member.socket.readyState === 1) member.socket.ping();
+      }
+    }
+  }, PING_INTERVAL_MS);
+  pinger.unref();
 }
 
 // Replay detection: (roomId -> sender -> last accepted seq). A frame whose
@@ -108,8 +158,12 @@ export function registerStreamRoute(
       const ready = new Promise<void>((resolve) => {
         resolveReady = resolve;
       });
-      const member: RoomMember = { ready, resolveReady };
+      const member: RoomMember = { ready, resolveReady, socket, lastPong: Date.now() };
       joinRoom(roomId, member);
+      ensurePinger();
+      socket.on("pong", () => {
+        member.lastPong = Date.now();
+      });
 
       socket.on("message", (raw) => {
         if (processMessage) {
@@ -180,7 +234,7 @@ export function registerStreamRoute(
       async function publishEnvelope(envelope: { room_id: string }): Promise<void> {
         const members = roomMembers.get(roomId);
         if (members) {
-          await Promise.all([...members].map((m) => m.ready));
+          await awaitMembersReady(members);
         }
         const wrapper = JSON.stringify({ from: originId, frame: JSON.stringify(envelope) });
         await publisher!.publish(framesChannel(roomId), wrapper);

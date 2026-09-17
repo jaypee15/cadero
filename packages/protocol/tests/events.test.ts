@@ -62,4 +62,22 @@ describe("wire event schema rejections", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("accepts TERMINAL_CATCHUP_REQUEST with an empty payload", () => {
+    const result = WireEventSchema.safeParse({
+      event: "TERMINAL_CATCHUP_REQUEST",
+      meta: { session_id: "mobile" },
+      payload: {},
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects TERMINAL_CATCHUP_REQUEST with extra payload fields", () => {
+    const result = WireEventSchema.safeParse({
+      event: "TERMINAL_CATCHUP_REQUEST",
+      meta: { session_id: "mobile" },
+      payload: { extra: true },
+    });
+    expect(result.success).toBe(false);
+  });
 });
