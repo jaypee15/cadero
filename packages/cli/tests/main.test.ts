@@ -104,13 +104,54 @@ describe("runCli", () => {
     expect(errs.join("\n")).toContain("cadero login");
   });
 
-  it("start without a relay URL exits 1", async () => {
+  it("start defaults to the deployed relay when none is given", async () => {
     dir = mkdtempSync(join(tmpdir(), "cadero-main-"));
     writeFileSync(join(dir, "credentials.json"), JSON.stringify({ githubToken: "tok" }));
-    const errs: string[] = [];
-    const code = await runCli(["start"], { caderoDir: dir, env: {}, stderr: (l) => errs.push(l) });
-    expect(code).toBe(1);
-    expect(errs.join("\n")).toContain("--relay-url");
+    const urls: string[] = [];
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      urls.push(String(input));
+      throw new Error("stop at pair");
+    }) as unknown as typeof fetch;
+    await expect(runCli(["start"], { caderoDir: dir, env: {}, fetchImpl })).rejects.toThrow(
+      "stop at pair",
+    );
+    expect(urls[0]).toContain("https://cadero.dev/v1/pair");
+  });
+
+  it("start prefers CADERO_RELAY_URL over the default", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadero-main-"));
+    writeFileSync(join(dir, "credentials.json"), JSON.stringify({ githubToken: "tok" }));
+    const urls: string[] = [];
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      urls.push(String(input));
+      throw new Error("stop");
+    }) as unknown as typeof fetch;
+    await expect(
+      runCli(["start"], {
+        caderoDir: dir,
+        env: { CADERO_RELAY_URL: "https://relay.example.com" },
+        fetchImpl,
+      }),
+    ).rejects.toThrow("stop");
+    expect(urls[0]).toContain("https://relay.example.com/v1/pair");
+  });
+
+  it("start prefers --relay-url over everything", async () => {
+    dir = mkdtempSync(join(tmpdir(), "cadero-main-"));
+    writeFileSync(join(dir, "credentials.json"), JSON.stringify({ githubToken: "tok" }));
+    const urls: string[] = [];
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      urls.push(String(input));
+      throw new Error("stop");
+    }) as unknown as typeof fetch;
+    await expect(
+      runCli(["start", "--relay-url", "http://127.0.0.1:1"], {
+        caderoDir: dir,
+        env: { CADERO_RELAY_URL: "https://relay.example.com" },
+        fetchImpl,
+      }),
+    ).rejects.toThrow("stop");
+    expect(urls[0]).toContain("http://127.0.0.1:1/v1/pair");
   });
 
   it("start with an invalid CADERO_MIRROR_GRACE_MS exits 1 before pairing", async () => {

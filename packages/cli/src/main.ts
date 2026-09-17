@@ -25,13 +25,16 @@ export interface RunOptions {
 /** Spec: agent output stays hidden this long so the QR stays scannable. */
 const MIRROR_GRACE_MS = 60000;
 
+/** The public deployment — used when neither --relay-url nor the env is set. */
+const DEFAULT_RELAY_URL = "https://cadero.dev";
+
 const USAGE = `cadero — control local AI agents from your phone
 
 Usage:
   cadero login                          Authenticate with GitHub
   cadero start [options]                Pair a session and start the agent
     --agent <claude|opencode|codex>          Agent binary to spawn (default: claude)
-    --relay-url <url>                        Relay base URL (or set CADERO_RELAY_URL)
+    --relay-url <url>                        Relay base URL (default: https://cadero.dev; or set CADERO_RELAY_URL)
   cadero --help                         Show this help
 `;
 
@@ -73,7 +76,8 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
 
   if (command === "start") {
     let agent: AgentName = "claude";
-    let relayUrl = env.CADERO_RELAY_URL ?? "";
+    // Resolution order: --relay-url > CADERO_RELAY_URL > the deployed relay.
+    let relayUrl = env.CADERO_RELAY_URL ?? DEFAULT_RELAY_URL;
     for (let i = 0; i < rest.length; i += 1) {
       if (rest[i] === "--agent") {
         agent = rest[i + 1] as AgentName;
@@ -85,10 +89,6 @@ export async function runCli(argv: string[], opts: RunOptions = {}): Promise<num
     }
     if (agent !== "claude" && agent !== "opencode" && agent !== "codex") {
       err(`unknown agent '${agent}' (use claude, opencode, or codex)`);
-      return 1;
-    }
-    if (!relayUrl) {
-      err("relay URL required: pass --relay-url or set CADERO_RELAY_URL");
       return 1;
     }
     const creds = await loadCredentials(caderoDir);

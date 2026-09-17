@@ -37,7 +37,7 @@ export default function Home() {
             the live terminal, send prompts, and approve or deny every action
             from your phone.
           </p>
-          <div className="mt-8 flex items-center gap-4">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
             <Link
               href="/app"
               className="rounded-xl bg-accent-dim px-6 py-3 font-semibold text-surface-0 transition hover:bg-accent"
@@ -46,9 +46,12 @@ export default function Home() {
             </Link>
             <a
               href="https://github.com/jaypee15/cadence"
-              className="rounded-xl px-6 py-3 font-medium text-ink-muted ring-1 ring-line transition hover:text-ink"
+              className="inline-flex items-center gap-2 rounded-xl bg-surface-3 px-6 py-3 font-medium text-ink ring-1 ring-line transition hover:bg-surface-2"
             >
-              Source
+              <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4 text-amber-400" aria-hidden="true">
+                <path d="M8 .8a.8.8 0 0 1 .74.5l1.62 3.93 4.25.34a.8.8 0 0 1 .46 1.4l-3.23 2.77.98 4.15a.8.8 0 0 1-1.2.87L8 11.87l-3.48 2.07a.8.8 0 0 1-1.2-.87l.98-4.15L1.3 6.29a.8.8 0 0 1 .46-1.41l4.25-.34L7.5.98A.8.8 0 0 1 8 .8Z" />
+              </svg>
+              Star on GitHub
             </a>
           </div>
           <div className="pointer-events-none mt-14 w-full max-w-md rounded-t-3xl border border-b-0 border-line bg-surface-1 p-4 text-left shadow-2xl">
@@ -100,8 +103,17 @@ export default function Home() {
           </p>
         </section>
 
-        <footer className="flex items-center justify-between border-t border-line py-6 text-xs text-ink-faint">
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line py-6 text-xs text-ink-faint">
           <span>© 2026 Cadero</span>
+          <a
+            href="https://github.com/jaypee15/cadence"
+            className="inline-flex items-center gap-1.5 transition hover:text-ink"
+          >
+            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5 text-amber-400" aria-hidden="true">
+              <path d="M8 .8a.8.8 0 0 1 .74.5l1.62 3.93 4.25.34a.8.8 0 0 1 .46 1.4l-3.23 2.77.98 4.15a.8.8 0 0 1-1.2.87L8 11.87l-3.48 2.07a.8.8 0 0 1-1.2-.87l.98-4.15L1.3 6.29a.8.8 0 0 1 .46-1.41l4.25-.34L7.5.98A.8.8 0 0 1 8 .8Z" />
+            </svg>
+            Star the repo
+          </a>
           <span className="font-mono">MIT — self-hosted</span>
         </footer>
       </main>
