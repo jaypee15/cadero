@@ -81,8 +81,8 @@ export default function Home() {
           />
           <Step
             n="02"
-            title="Scan from the phone"
-            body="The PWA pairs with the room, keys shared directly between your devices — the relay only ever sees ciphertext."
+            title="Scan the QR with your phone"
+            body="Open the PWA on your phone and scan the terminal QR with its built-in scanner. Keys are shared directly between your devices — the relay only ever sees ciphertext."
           />
           <Step
             n="03"
@@ -114,7 +114,7 @@ export default function Home() {
             </svg>
             Star the repo
           </a>
-          <span className="font-mono">MIT — self-hosted</span>
+          <span className="font-mono">MIT License</span>
         </footer>
       </main>
     </>
